@@ -283,6 +283,7 @@ if (-not $NoCheckpoint) {
     warnings = $warnings.Count
     not_verified = $unverified.Count
     passed = $passed.Count
+    not_rechecked = @($earlierList | Where-Object { $_.status -eq 'not_rechecked' } | ForEach-Object { [pscustomobject]@{ name = $_.name; page = $_.page } })
     pdf = $(if ($pdfError) { $null } else { $pdfFile })
     html = $htmlFile
     pdf_error = $pdfError

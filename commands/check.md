@@ -185,7 +185,7 @@ Then run the following. The script decides the verdict, so don't work it out or 
 powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scripts/render-report.ps1" -ResultsFile "<path to results.json>"
 ```
 
-If it reports invalid JSON or an unknown status, fix the file and run it again. If `pdf_error` is set, tell the user and give them the `html` path. If Windows blocks PowerShell scripts altogether, tell the user and give your results in the chat, saying that the report script couldn't confirm the verdict.
+If it reports invalid JSON or an unknown status, fix the file and run it again. If its `not_rechecked` list isn't empty, those are issues left open by this session's last run. Recheck each one, add it to `earlier_issues` with the same name and page, and run the script again. Never say you don't know what they are. If `pdf_error` is set, tell the user and give them the `html` path. If Windows blocks PowerShell scripts altogether, tell the user and give your results in the chat, saying that the report script couldn't confirm the verdict.
 
 Close the tab you opened. Tell the user the verdict, the answer to "Safe to publish to production?", the breaking issues in a line each, anything to do by hand, and the full path to the PDF.
 
