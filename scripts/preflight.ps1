@@ -31,7 +31,10 @@ $required = @('MARKETO_BASE_URL', 'MARKETO_CLIENT_ID', 'MARKETO_CLIENT_SECRET')
 $missing = @($required | Where-Object { $names -notcontains $_ })
 
 $browser = Find-Browser
+$now = (Get-Date).ToUniversalTime()
 [pscustomobject]@{
+    run_id            = $now.ToString('yyyyMMdd-HHmmss')
+    now_utc           = $now.ToString('yyyy-MM-ddTHH:mm:ssZ')
     config_path       = $ConfigPath
     config_found      = [bool](Test-Path $ConfigPath)
     pdf_browser       = $browser

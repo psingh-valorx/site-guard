@@ -95,7 +95,7 @@ if ($browsers | Where-Object { $_ -and (Test-Path $_) }) { Say $true 'Found Chro
 else { Say $false 'Install Chrome or Edge, which creates the PDF.' }
 
 Write-Host "`nDo these once if you haven't:"
-Write-Host '  - Install the Claude in Chrome extension and connect it'
+Write-Host '  - Install the Claude in Chrome extension and connect it. In a terminal, start Claude Code with: claude --chrome'
 Write-Host '  - Connect the Webflow connector in Claude'
 
 if ($problems.Count -gt 0) { Write-Host "`nNot finished. Fix the ACTION items above, then run this file again.`n" -ForegroundColor Yellow; exit 1 }

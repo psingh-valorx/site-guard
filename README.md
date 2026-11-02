@@ -40,7 +40,7 @@ They still need to connect Claude in Chrome and the Webflow connector themselves
 ## Before your first run
 
 1. **Site config (required):** copy `config/site-guard.example.yml` to `%USERPROFILE%\.site-guard\site-guard.yml` and fill it in, or get your team's copy. The plugin stops without it, and it never tests a site that isn't in that file.
-2. **Claude in Chrome:** install the extension and connect it. It runs the checks in a new tab.
+2. **Claude in Chrome:** install the extension and connect it. It runs the checks in a new tab. In a terminal, start Claude Code with `claude --chrome`, or run `/chrome`.
 3. **Webflow connector:** connect it in Claude.
 4. **Marketo (optional):** copy `.env.example` to `%USERPROFILE%\.site-guard\.env` and add your values. Don't put this file in OneDrive or a repo. Without it, form delivery is reported as not verified.
 

@@ -26,6 +26,9 @@ function ListHtml($items) {
 
 $r = Get-Content $ResultsFile -Raw -Encoding UTF8 | ConvertFrom-Json
 
+# Stamp the finish time here, so the report never carries a guessed time.
+$r | Add-Member -NotePropertyName finished_at -NotePropertyValue ((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')) -Force
+
 $validStatus = 'pass', 'fail', 'not_verified', 'not_submitted', 'skipped'
 $validSeverity = 'breaking', 'warning', 'info'
 $checks = @(Arr $r.checks)
@@ -38,6 +41,25 @@ foreach ($c in $checks) {
         $c | Add-Member -NotePropertyName evidence -NotePropertyValue 'Downgraded by the report: reported as a pass with no evidence.' -Force
     }
 }
+
+# Issues left open by this session's last run must be accounted for, so none can be forgotten.
+$earlierList = New-Object System.Collections.ArrayList
+foreach ($x in (Arr $r.earlier_issues)) { [void]$earlierList.Add($x) }
+$sinceRun = $null
+if (Test-Path $CheckpointFile) {
+    foreach ($run in (Get-Content $CheckpointFile -Raw -Encoding UTF8 | ConvertFrom-Json)) { if ($r.session_id -and $run.session_id -eq $r.session_id) { $sinceRun = $run } }
+}
+$forgotten = 0
+if ($sinceRun) {
+    foreach ($o in (Arr $sinceRun.open_issues)) {
+        if (@($earlierList | Where-Object { $_.name -eq $o.name -and $_.page -eq $o.page }).Count -eq 0) {
+            [void]$earlierList.Add([pscustomobject]@{ name = $o.name; page = $o.page; status = 'not_rechecked' })
+            $forgotten++
+        }
+    }
+    if ($r.scope -and -not $r.scope.since_checkpoint) { $r.scope | Add-Member -NotePropertyName since_checkpoint -NotePropertyValue $sinceRun.finished_at -Force }
+}
+$notRechecked = @($earlierList | Where-Object { $_.status -eq 'not_rechecked' }).Count
 
 # --- Verdict ---
 # Intended changes and problems production already has do not count against this work.
@@ -53,6 +75,7 @@ $reasons = @()
 if ($checks.Count -eq 0) { $reasons += 'No checks ran.' }
 if ($unverified.Count -gt 0) { $reasons += "$($unverified.Count) check(s) could not be verified." }
 if ($r.scope.confidence -ne 'high') { $reasons += 'The session did not clearly show what changed.' }
+if ($notRechecked -gt 0) { $reasons += "$notRechecked issue(s) from the last check were not rechecked." }
 if ($r.publish.unpublished_changes -eq $true) { $reasons += 'The site has unpublished edits, so dev may not show the latest work.' }
 
 if ($breaking.Count -gt 0) {
@@ -128,7 +151,7 @@ foreach ($c in $breaking) {
     Add '</div>'
 }
 
-$earlier = @(Arr $r.earlier_issues)
+$earlier = @($earlierList)
 if ($earlier.Count -gt 0) {
     Add '<h2>Issues from your last check</h2>'
     Add '<table class="t"><thead><tr><th>Issue</th><th>Page</th><th>Now</th></tr></thead><tbody>'
@@ -167,8 +190,8 @@ Add (CheckTable ($checks | Where-Object { @('page', 'layout') -contains $_.area 
 Add '<h2>SEO and images</h2>'
 Add (CheckTable ($checks | Where-Object { @('seo', 'image') -contains $_.area -and $notCounted -notcontains $_.attribution }))
 
-$outside = @($checks | Where-Object { $_.attribution -eq 'outside_session' })
-$review = @($checks | Where-Object { $_.attribution -eq 'needs_review' })
+$outside = @($checks | Where-Object { $_.status -eq 'fail' -and $_.attribution -eq 'outside_session' })
+$review = @($checks | Where-Object { $_.status -eq 'fail' -and $_.attribution -eq 'needs_review' })
 Add '<h2>Other differences</h2>'
 Add '<h3>Intended by this session</h3>'; Add (CheckTable $intended)
 Add '<h3>Not from this session</h3>'; Add (CheckTable $outside)

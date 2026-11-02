@@ -4,7 +4,8 @@ param(
     [string]$SessionId,
     [string]$TranscriptPath,
     [string]$ProjectDir = (Get-Location).Path,
-    [string]$Since
+    [string]$Since,
+    [string]$CheckpointFile = (Join-Path $env:USERPROFILE '.site-guard\state\checkpoints.json')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -33,6 +34,18 @@ if (-not $TranscriptPath) {
     }
 }
 if (-not (Test-Path $TranscriptPath)) { Done ([pscustomobject]@{ ok = $false; error = "No transcript at $TranscriptPath." }) }
+
+# Find this session's last run, so the next run only looks at newer work.
+$thisSession = [IO.Path]::GetFileNameWithoutExtension($TranscriptPath)
+$previous = $null
+$lastSubmission = $null
+if (Test-Path $CheckpointFile) {
+    foreach ($run in (Get-Content $CheckpointFile -Raw -Encoding UTF8 | ConvertFrom-Json)) {
+        if ($run.session_id -eq $thisSession) { $previous = $run }
+        if ($run.last_real_submission_at) { $lastSubmission = $run.last_real_submission_at }
+    }
+}
+if (-not $Since -and $previous) { $Since = $previous.finished_at }
 
 $sinceTime = $null
 if ($Since) { $sinceTime = [datetime]::Parse($Since).ToUniversalTime() }
@@ -112,6 +125,9 @@ Done ([pscustomobject]@{
     session_id          = [IO.Path]::GetFileNameWithoutExtension($TranscriptPath)
     session_certain     = $sessionCertain
     other_active_sessions = $recentOthers
+    previous_run        = $previous
+    changes_since       = $Since
+    last_real_submission_at = $lastSubmission
     lines_read          = $lines
     unreadable_lines    = $unparsed
     compactions_found   = $compactions
