@@ -27,6 +27,9 @@ catch [System.Net.WebException] {
     else { Done ([pscustomobject]@{ ok = $false; url = $Url; error = $_.Exception.Message }) }
 }
 
+$xmlValid = $false
+try { [void][xml]$html; $xmlValid = $true } catch {}
+
 function Attr($tag, $name) {
     $m = [regex]::Match($tag, "(?is)\b$name\s*=\s*(?:""([^""]*)""|'([^']*)'|([^\s>]+))")
     if (-not $m.Success) { return $null }
@@ -109,6 +112,7 @@ Done ([pscustomobject]@{
     ok               = $true
     url              = $Url
     status           = $status
+    xml_valid        = $xmlValid
     title            = $(Text ([regex]::Match($body, '(?is)<title\b[^>]*>(.*?)</title>').Groups[1].Value))
     description      = $meta['description']
     robots           = $meta['robots']

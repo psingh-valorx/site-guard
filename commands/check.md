@@ -141,7 +141,7 @@ For each affected page, apply `seo-rules.yml`. Read both copies with this script
 powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scripts/read-page.ps1" -Url "<url>" -AllowedHosts "<dev host>,<production host>"
 ```
 
-Add `-CheckLinks` on the dev copy to test its internal links. Check each page's links only once per run.
+Add `-CheckLinks` on the dev copy to test its internal links. Check each page's links only once per run. For the sitemap rule, run the script on `/sitemap.xml` and read `status` and `xml_valid`.
 
 If a page shows a console error on dev and its `scripts_hash` matches production, the code is the same on both, so mark the error `pre_existing` and say why. If the hashes differ, use `needs_review`, unless the session's work clearly caused it.
 
