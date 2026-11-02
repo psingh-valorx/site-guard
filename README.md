@@ -21,6 +21,17 @@ You need Claude Code's `claude` command on your laptop. Inside a terminal Claude
 
 **Desktop app:** use a local session on Windows. Once the marketplace is added, you can also manage the plugin from **+** > **Plugins** next to the prompt box. It doesn't work in WSL or cloud sessions, and it doesn't appear in Cowork.
 
+## Updating
+
+Run these in a normal terminal, then restart Claude Code or the desktop app:
+
+```
+claude plugin marketplace update valorx-tools
+claude plugin update site-guard@valorx-tools
+```
+
+If you change the plugin, raise `version` in `.claude-plugin/plugin.json` too, so the update picks up your change.
+
 ## Team setup in one file
 
 To set up your team, run this once on your own laptop, after your two private files are in place:
