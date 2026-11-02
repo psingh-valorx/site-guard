@@ -1,0 +1,8 @@
+.env
+.env.*
+!.env.example
+*.pdf
+reports/
+env
+config/site-guard.yml
+site-guard.yml

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{TITLE}}</title>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap">
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+  * { box-sizing: border-box; }
+  :root { --purple: #844fff; --brand: #8221EA; --ink: #1b1530; --gray: #746f6f; --line: #e6e2f0; --soft: #f6f9fc;
+          --red: #c62f3b; --red-soft: #fdecee; --amber: #a86400; --amber-soft: #fff5e3; --green: #16794c; --green-soft: #e7f6ee; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: Satoshi, "Segoe UI", Arial, sans-serif; color: var(--ink); font-size: 10.5pt; line-height: 1.45;
+         -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .brand { display: flex; justify-content: space-between; align-items: center; color: var(--gray); font-size: 9pt; margin-bottom: 14px; }
+  .brand b { color: var(--brand); font-size: 12pt; letter-spacing: .2px; }
+  h1 { font-size: 22pt; line-height: 1.15; margin: 0 0 4px; }
+  h2 { font-size: 13.5pt; margin: 26px 0 10px; padding-bottom: 6px; border-bottom: 2px solid var(--purple); break-after: avoid; }
+  h3 { font-size: 11pt; margin: 0 0 6px; break-after: avoid; }
+  p { margin: 0 0 8px; }
+  .muted { color: var(--gray); }
+  .verdict { border-radius: 12px; padding: 18px 20px; margin: 14px 0 12px; }
+  .verdict .word { font-size: 25pt; font-weight: 700; line-height: 1; margin-bottom: 8px; }
+  .v-PASS { background: var(--green-soft); color: var(--green); }
+  .v-BREAKING { background: var(--red-soft); color: var(--red); }
+  .v-INCOMPLETE { background: var(--amber-soft); color: var(--amber); }
+  .verdict .why { color: var(--ink); }
+  .stats { display: flex; gap: 8px; margin: 10px 0; }
+  .stat { flex: 1; background: var(--soft); border-radius: 8px; padding: 9px 10px; }
+  .stat b { display: block; font-size: 15pt; line-height: 1.1; }
+  .stat span { color: var(--gray); font-size: 8.5pt; }
+  .meta { width: 100%; border-collapse: collapse; }
+  .meta td { padding: 3px 0; vertical-align: top; }
+  .meta td:first-child { color: var(--gray); width: 170px; }
+  table.t { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+  table.t th { text-align: left; font-weight: 700; color: var(--gray); font-size: 8.5pt; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  table.t td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+  table.t tr { break-inside: avoid; }
+  thead { display: table-header-group; }
+  .pill { display: inline-block; white-space: nowrap; padding: 1px 8px; border-radius: 999px; font-size: 8.5pt; font-weight: 700; }
+  .s-pass { background: var(--green-soft); color: var(--green); }
+  .s-fail { background: var(--red-soft); color: var(--red); }
+  .s-warning { background: var(--amber-soft); color: var(--amber); }
+  .s-not_verified { background: var(--amber-soft); color: var(--amber); }
+  .s-not_submitted, .s-skipped, .s-info { background: var(--soft); color: var(--gray); }
+  .card { border: 1px solid var(--line); border-left: 4px solid var(--red); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; break-inside: avoid; }
+  .card .row { margin-bottom: 4px; }
+  .card .label { color: var(--gray); }
+  .shots { display: flex; gap: 8px; margin-top: 8px; }
+  .shots figure { flex: 1; margin: 0; min-width: 0; }
+  .shots img { width: 100%; border: 1px solid var(--line); border-radius: 4px; display: block; }
+  .shots figcaption { color: var(--gray); font-size: 8.5pt; margin-top: 3px; }
+  .note { background: var(--amber-soft); border-radius: 8px; padding: 9px 12px; margin: 8px 0; }
+  ul { margin: 0 0 8px; padding-left: 18px; }
+  li { margin-bottom: 3px; }
+  .foot { margin-top: 24px; color: var(--gray); font-size: 8.5pt; }
+  code { font-family: Consolas, monospace; font-size: 9pt; }
+</style>
+</head>
+<body>
+{{CONTENT}}
+</body>
+</html>

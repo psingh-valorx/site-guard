@@ -1,0 +1,85 @@
+# Copy to %USERPROFILE%\.site-guard\site-guard.yml and fill in your own site.
+# That local copy is never committed. The plugin won't run without it.
+
+site:
+  webflow_site_id: YOUR_WEBFLOW_SITE_ID
+  dev_url: https://your-site.webflow.io       # the only site that is ever interacted with
+  production_url: https://www.example.com     # read-only "before" copy: plain page reads only
+
+real_submissions:
+  enabled: false                              # stays off until you've proven cleanup works
+  test_email: you+sitecheck@example.com       # an inbox you own, never a real customer's
+  label: SITE GUARD TEST                      # goes in name and company fields when the form has them
+  cleanup_campaign_id: 0                      # Marketo campaign that deletes only test_email
+  cleanup_wait_minutes: 15
+  recheck_after_minutes: 20
+  min_minutes_between_submissions: 15         # one shared address: a delete timer ends every open run
+
+# policy:
+#   real       - real submission allowed, only on pages the user worked on
+#   no_submit  - fill in and test validation, never click submit
+# Any form not listed here is treated as no_submit and flagged for review.
+forms:
+  - id: 1000
+    name: Demo request
+    captcha: true
+    policy: real
+    pages: [/demo]
+    outside_effects: What a submission sets off, such as emails, alerts and CRM sync.
+  - id: 1001
+    name: Newsletter in the footer
+    captcha: true
+    policy: real
+    only_if: the user worked on the footer itself
+    pages: [nearly every page]
+    outside_effects: Thank-you email.
+  - id: 1002
+    name: Support
+    captcha: false
+    policy: real
+    pages: [/support]
+    outside_effects: Opens a helpdesk ticket that cleanup does not remove.
+    followup: Close the helpdesk ticket labelled SITE GUARD TEST.
+  - id: 1003
+    name: Event registration
+    captcha: false
+    policy: no_submit
+    pages: [/events/*]
+    reason: Registers in a third-party system with no approved cleanup.
+
+# Compared with production on every run, read-only, even when nothing touched them.
+key_forms: [1000]
+
+# Non-submitting browser checks. Always run when a listed trigger matches the change scope.
+flows:
+  - id: navigation
+    pages: [/]
+    runs_when: always
+    steps: Open the page at desktop and phone width. Open each nav menu. Check every nav and footer link resolves.
+    expect: Menus open, links return 200, no JavaScript errors.
+  - id: primary-cta
+    pages: [/]
+    runs_when: always
+    steps: Find the primary hero and nav CTAs and follow them.
+    expect: They reach the expected page, where any form renders.
+
+viewports:
+  - { name: desktop, width: 1920, height: 1080 }
+  - { name: laptop, width: 1366, height: 768 }
+  - { name: tablet, width: 768, height: 1024 }
+  - { name: phone, width: 375, height: 812 }
+
+# Expected dev vs production differences. Never report these as issues.
+known_differences:
+  - item: robots.txt
+    reason: Dev blocks all crawlers on purpose, production allows them. Do not compare.
+  - item: hostnames in absolute URLs
+    reason: Normalize the dev and production hostnames before comparing, except canonical tags.
+  - item: sitemap URLs
+    reason: The dev sitemap may list production URLs. Only check that it loads and parses.
+
+# Forms that can't be tested for a known reason, such as a CAPTCHA key that rejects the dev domain.
+known_blockers: []
+#  - forms: [1000]
+#    status: not_verified
+#    message: "Not verified: CAPTCHA blocks dev submissions"

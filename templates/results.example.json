@@ -1,0 +1,121 @@
+{
+  "run_id": "20261102-1130",
+  "session_id": "example-session",
+  "run_by": "Example Teammate",
+  "started_at": "2026-11-02T11:05:00Z",
+  "finished_at": "2026-11-02T11:30:00Z",
+  "mode": "normal",
+  "last_real_submission_at": "2026-11-02T11:12:00Z",
+  "publish": {
+    "dev_last_published": "2026-11-02T10:58:00Z",
+    "site_last_updated": "2026-11-02T10:58:10Z",
+    "production_last_published": "2026-10-31T05:15:53Z",
+    "unpublished_changes": false
+  },
+  "scope": {
+    "confidence": "high",
+    "since_checkpoint": "",
+    "notes": "Changed the hero copy and moved the demo form on /demo. Rewrote the page's H1 on purpose.",
+    "worked_pages": [
+      "/demo"
+    ],
+    "shared_changes": [],
+    "cms_items": [],
+    "live_cms_publishes": []
+  },
+  "checks": [
+    {
+      "area": "form",
+      "name": "Form 1000 real submission",
+      "page": "/demo",
+      "status": "fail",
+      "severity": "breaking",
+      "attribution": "this_session",
+      "evidence": "Form showed 'Submission failed, please try again later.' No lead in Marketo after 5 minutes.",
+      "cause": "The form embed moved outside the element its script looks for.",
+      "fix": "Move the embed back inside .hero-form, then publish to dev and run the check again.",
+      "screenshots": [
+        {
+          "label": "Dev",
+          "path": "C:\\path\\to\\dev.png"
+        },
+        {
+          "label": "Production",
+          "path": "C:\\path\\to\\production.png"
+        }
+      ]
+    },
+    {
+      "area": "form",
+      "name": "Form 1004 compared with production",
+      "page": "/demo-two",
+      "status": "pass",
+      "severity": "info",
+      "attribution": "this_session",
+      "evidence": "Same field names, required flags and hidden fields as production."
+    },
+    {
+      "area": "form",
+      "name": "Form 1001 footer",
+      "page": "/demo",
+      "status": "not_submitted",
+      "severity": "info",
+      "attribution": "this_session",
+      "evidence": "The footer was not worked on, so no real submission was made. It rendered and validated correctly."
+    },
+    {
+      "area": "seo",
+      "name": "H1 rewritten",
+      "page": "/demo",
+      "status": "fail",
+      "severity": "warning",
+      "attribution": "intended",
+      "evidence": "H1 differs from production. The session rewrote it on purpose."
+    },
+    {
+      "area": "image",
+      "name": "Images missing width and height",
+      "page": "/demo",
+      "status": "fail",
+      "severity": "warning",
+      "attribution": "pre_existing",
+      "evidence": "130 of 130 images, the same as production.",
+      "fix": "Set image dimensions in Webflow when next editing these sections."
+    },
+    {
+      "area": "image",
+      "name": "Image formats",
+      "page": "/demo",
+      "status": "fail",
+      "severity": "info",
+      "attribution": "this_session",
+      "evidence": "62 SVG, 45 AVIF, 13 PNG, 10 WebP. hero-image.png, PNG, 640 KB.",
+      "fix": "Use WebP for hero-image.png."
+    }
+  ],
+  "earlier_issues": [
+    {
+      "name": "Missing og:title",
+      "page": "/demo",
+      "status": "fixed"
+    }
+  ],
+  "cleanup": [
+    {
+      "form": "1000",
+      "lead_id": "1234567",
+      "submitted_at": "2026-11-02T11:12:00Z",
+      "delete_due_at": "2026-11-02T11:27:00Z",
+      "marketo_status": "scheduled",
+      "salesforce_status": "not verified"
+    }
+  ],
+  "followups": [
+    "Check Salesforce to confirm the test Contact was removed."
+  ],
+  "limits": [
+    "Salesforce cleanup cannot be checked from this plugin."
+  ],
+  "dev_host": "your-site.webflow.io",
+  "site_name": "Example Co"
+}

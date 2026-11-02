@@ -1,0 +1,82 @@
+# SEO and image rules. Adapted from claude-seo (MIT), see THIRD_PARTY_NOTICES.md.
+# Thresholds change with Google policy: review this file against the upstream changelog occasionally.
+#
+# severity: breaking fails the check, warning and info never do.
+# Before reporting a change, decide from the session whether it was intended.
+# An intended change is reported as intended, whatever its severity here.
+#
+# Run every rule on dev and on the same production page. A problem found on both is
+# attribution: pre_existing, not a new issue. Otherwise every run raises the same warnings
+# for problems the site already has, such as images with no width and height.
+
+compare_with_production:
+  - { id: page-error, severity: breaking, rule: "Production returns 2xx and dev returns 4xx or 5xx." }
+  - { id: noindex-added, severity: breaking, rule: "A noindex meta robots tag exists on dev and not on production." }
+  - { id: title-removed, severity: breaking, rule: "Production has a title, dev has none." }
+  - { id: h1-removed, severity: breaking, rule: "Production has an H1, dev has none." }
+  - { id: canonical-removed, severity: breaking, rule: "Production has a canonical tag, dev has none." }
+  - { id: canonical-changed, severity: breaking, rule: "Canonical differs from production. Do not normalize it first: dev pages often point at the production domain on purpose." }
+  - { id: schema-removed, severity: breaking, rule: "Production has JSON-LD, dev has none." }
+  - { id: h1-rewritten, severity: warning, rule: "First H1 differs by more than half. Often intended: check the session." }
+  - { id: title-changed, severity: warning, rule: "Title text differs." }
+  - { id: description-changed, severity: warning, rule: "Meta description differs." }
+  - { id: og-removed, severity: warning, rule: "Production has Open Graph tags, dev has none." }
+  - { id: schema-changed, severity: warning, rule: "JSON-LD content differs but still exists. Validate it." }
+  - { id: schema-added, severity: info, rule: "New JSON-LD on dev. Validate it." }
+  - { id: h2-changed, severity: info, rule: "H2 count or text differs." }
+
+page:
+  - { id: broken-image, severity: breaking, rule: "An image request fails or the image has naturalWidth 0." }
+  - { id: broken-internal-link, severity: breaking, rule: "An internal link on the page returns 4xx or 5xx. Check each unique URL once, with a plain request." }
+  - { id: sitemap-invalid, severity: warning, rule: "/sitemap.xml on dev does not return 200 or does not parse as XML. Check once per run." }
+  - { id: mixed-content, severity: warning, rule: "An http:// resource loads on the https page." }
+  - { id: history-hijack, severity: warning, rule: "Script defeats the Back button through pushState or replaceState loops." }
+  - { id: title-length, severity: info, rule: "Title outside 50-60 characters." }
+  - { id: description-length, severity: info, rule: "Meta description outside 150-160 characters." }
+  - { id: h1-count, severity: warning, rule: "Not exactly one H1." }
+  - { id: heading-order, severity: info, rule: "Heading levels are skipped." }
+  - { id: social-tags, severity: warning, rule: "Missing og:title, og:description, og:image, or twitter:card." }
+
+schema:
+  - { id: schema-context, severity: warning, rule: "JSON-LD block is missing @context or @type, or does not parse." }
+  - { id: schema-required, severity: warning, rule: "Missing a property Google requires for that type's rich result, such as name, uploadDate and thumbnailUrl on VideoObject." }
+  - { id: schema-placeholder, severity: warning, rule: "Placeholder text such as [Company Name] or REPLACE_ME." }
+  - { id: schema-relative-url, severity: info, rule: "Relative URLs where absolute ones are required." }
+  - { id: schema-deprecated, severity: info, rule: "HowTo, SpecialAnnouncement, CourseInfo, EstimatedSalary, LearningVideo, ClaimReview, VehicleListing." }
+
+images:
+  size_limits_kb:   # warning above the first number, also warning above the second, flagged as critical in the text
+    thumbnail: [100, 200]
+    content: [200, 500]
+    hero: [300, 700]
+  rules:
+    - { id: alt-missing, severity: warning, rule: "No alt attribute. An empty alt is fine for decorative images." }
+    - { id: alt-poor, severity: info, rule: "Alt is a filename or generic, or outside 10-125 characters." }
+    - { id: dimensions-missing, severity: warning, rule: "No width and height attributes, which risks layout shift." }
+    - { id: hero-lazy, severity: warning, rule: "Above-the-fold hero image uses loading=lazy." }
+    - { id: hero-priority, severity: info, rule: "Hero image has no fetchpriority=high." }
+    - { id: below-fold-eager, severity: info, rule: "Below-the-fold image is not lazy loaded, unless a JS lazy loader is in use." }
+    - id: format
+      severity: info
+      rule: >-
+        Pages can hold 100 or more images, mostly shared logos, so count each unique image once.
+        Give the totals per format, then list only PNG, JPEG and GIF images with their file
+        name, size and recommended format, largest first, up to 40. If more remain, say how
+        many. Use WebP for photos and screenshots. Use WebP or PNG where transparency is
+        needed, and say that transparency could not be detected if it is unclear. Use SVG for
+        logos and icons, including files named like logo.svg.png. Report oversized images
+        under the size rules, not here.
+    - { id: srcset-missing, severity: info, rule: "Large content image has no srcset." }
+
+layout:
+  - { id: horizontal-scroll, severity: breaking, rule: "documentElement.scrollWidth is greater than clientWidth." }
+  - { id: hero-under-nav, severity: breaking, rule: "The first H1 starts behind the fixed nav." }
+  - { id: h1-above-fold, severity: warning, rule: "H1 not visible without scrolling." }
+  - { id: cta-above-fold, severity: warning, rule: "Primary CTA not visible without scrolling, where the page has one." }
+  - { id: touch-target, severity: info, rule: "Tappable element smaller than 48x48px at phone width." }
+
+# Never treat these as breaking. They are noisy, or dev cannot measure them.
+excluded:
+  - Core Web Vitals and Lighthouse comparisons: dev has almost no real traffic to measure.
+  - Pixel differences between screenshots: send them to human review only.
+  - robots.txt: see known_differences in site-guard.yml.

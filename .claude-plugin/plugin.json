@@ -1,0 +1,9 @@
+{
+  "name": "site-guard",
+  "version": "0.1.0",
+  "description": "Checks whether work published to a Webflow dev site broke forms, flows, SEO or images, and produces a PDF report.",
+  "author": {
+    "name": "Valorx Marketing"
+  },
+  "keywords": ["webflow", "marketo", "regression", "forms", "seo", "pdf"]
+}

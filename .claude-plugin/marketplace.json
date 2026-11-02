@@ -1,0 +1,16 @@
+{
+  "name": "valorx-tools",
+  "owner": {
+    "name": "Valorx Marketing"
+  },
+  "metadata": {
+    "description": "Website checks for Claude Code."
+  },
+  "plugins": [
+    {
+      "name": "site-guard",
+      "source": "./",
+      "description": "Checks whether work published to a Webflow dev site broke forms, flows, SEO or images, and produces a PDF report."
+    }
+  ]
+}
