@@ -6,3 +6,4 @@ reports/
 env
 config/site-guard.yml
 site-guard.yml
+site-guard-team-setup*.ps1

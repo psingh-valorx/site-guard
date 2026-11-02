@@ -21,6 +21,22 @@ You need Claude Code's `claude` command on your laptop. Inside a terminal Claude
 
 **Desktop app:** use a local session on Windows. Once the marketplace is added, you can also manage the plugin from **+** > **Plugins** next to the prompt box. It doesn't work in WSL or cloud sessions, and it doesn't appear in Cowork.
 
+## Team setup in one file
+
+To set up your team, run this once on your own laptop, after your two private files are in place:
+
+```
+powershell -ExecutionPolicy Bypass -File scripts\make-team-setup.ps1
+```
+
+It creates `%USERPROFILE%\.site-guard\site-guard-team-setup.ps1`, which installs the plugin and saves both private files for a teammate. **That file contains your secrets**, so share it only through a password manager, and never commit it. Teammates run it once, then delete it:
+
+```
+powershell -ExecutionPolicy Bypass -File .\site-guard-team-setup.ps1
+```
+
+They still need to connect Claude in Chrome and the Webflow connector themselves. If your settings change, make a new file, and have everyone run it again.
+
 ## Before your first run
 
 1. **Site config (required):** copy `config/site-guard.example.yml` to `%USERPROFILE%\.site-guard\site-guard.yml` and fill it in, or get your team's copy. The plugin stops without it, and it never tests a site that isn't in that file.
