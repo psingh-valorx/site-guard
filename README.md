@@ -34,19 +34,17 @@ If you change the plugin, raise `version` in `.claude-plugin/plugin.json` too, s
 
 ## Team setup in one file
 
-To set up your team, run this once on your own laptop, after your two private files are in place:
+After your private settings are in place, run this once on your own laptop:
 
 ```
 powershell -ExecutionPolicy Bypass -File scripts\make-team-setup.ps1
 ```
 
-It creates `%USERPROFILE%\.site-guard\site-guard-team-setup.ps1`, which installs the plugin and saves both private files for a teammate. **That file contains your secrets**, so share it only through a password manager, and never commit it. Teammates run it once, then delete it:
+It creates `%USERPROFILE%\.site-guard\Site-Guard-Setup.cmd`. Teammates double-click it, and it saves the settings and installs the plugin. If Claude Code's command line is missing, it offers to install it.
 
-```
-powershell -ExecutionPolicy Bypass -File .\site-guard-team-setup.ps1
-```
+By default the file holds no secrets, so you can share it like any file. Without Marketo, form delivery is reported as not verified. Add `-IncludeMarketo` to include your Marketo credentials too, and then share that file only privately.
 
-They still need to connect Claude in Chrome and the Webflow connector themselves. If your settings change, make a new file, and have everyone run it again.
+Teammates still turn on Claude in Chrome and connect Webflow themselves. If your settings change, make a new file and have everyone run it again.
 
 ## Before your first run
 

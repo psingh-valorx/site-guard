@@ -7,3 +7,4 @@ env
 config/site-guard.yml
 site-guard.yml
 site-guard-team-setup*.ps1
+Site-Guard-Setup*.cmd
