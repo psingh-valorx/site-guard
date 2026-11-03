@@ -98,7 +98,13 @@ For each form on an affected page, and each `key_forms` entry:
 
 Marketo renders its forms by script, so a plain read can't see their fields. Marketo hosts each form's fields, so dev and production share them as long as the form ID matches. A matching ID is a `pass` for this check, and the evidence must say that fields weren't read.
 
-On an affected page, also read the rendered form on dev in Chrome: field names, required flags, field types and hidden fields. Compare them with the form's definition at `https://<marketo_munchkin>.mktoweb.com/index.php/form/getForm?munchkinId=<marketo_munchkin>&form=<id>&callback=cb`. A field that's defined but missing from the page, or a hidden field that's lost, is `breaking`. For forms that aren't Marketo embeds, compare their `<form>` markup in the two pages' HTML instead.
+On an affected page, also read the rendered form on dev in Chrome. If it renders no fields, it's `breaking`: check the console for the cause, such as a missing Marketo script. Every field Marketo marks required (`.mktoRequiredField`) must be visible, not hidden by CSS or covered up, otherwise visitors can't submit, which is `breaking`. Then run:
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scripts/read-form.ps1" -Munchkin "<marketo_munchkin>" -FormId <id>
+```
+
+Each name in its `hidden` list must exist in the rendered form, or lead data such as UTMs is lost, which is `breaking`. Its `fields` list may leave out visible fields, so don't treat a visible field missing from it as a problem. For forms that aren't Marketo embeds, compare their `<form>` markup in the two pages' HTML instead.
 
 **Test as a visitor** on affected pages, in Chrome on dev:
 
