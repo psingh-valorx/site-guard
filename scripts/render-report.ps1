@@ -62,6 +62,29 @@ if ($sinceRun) {
 $notRechecked = @($earlierList | Where-Object { $_.status -eq 'not_rechecked' }).Count
 
 # --- Verdict ---
+# A form that didn't load on a page fails every check on that form there. Otherwise a check that
+# only compares form IDs could pass while visitors see no form.
+$deadForms = @{}
+foreach ($c in $checks) {
+    if ($c.form_id -and $c.form_renders -eq $false) { $deadForms["$($c.form_id)|$($c.page)"] = $true }
+}
+foreach ($c in $checks) {
+    if (-not $c.form_id -or -not $deadForms.ContainsKey("$($c.form_id)|$($c.page)")) { continue }
+    if ($c.form_renders -eq $false) {
+        $c.status = 'fail'
+        $c | Add-Member -NotePropertyName severity -NotePropertyValue 'breaking' -Force
+        continue
+    }
+    if ($c.status -eq 'pass' -or $c.status -eq 'not_submitted') {
+        $c.status = 'fail'
+        $c | Add-Member -NotePropertyName severity -NotePropertyValue 'breaking' -Force
+        $c | Add-Member -NotePropertyName evidence -NotePropertyValue ("$($c.evidence) Failed by the report: form $($c.form_id) did not load on this page.").Trim() -Force
+    }
+    if ($c.attribution -eq 'pre_existing' -or $c.attribution -eq 'intended' -or -not $c.attribution) {
+        $c | Add-Member -NotePropertyName attribution -NotePropertyValue 'this_session' -Force
+    }
+}
+
 # Intended changes and problems production already has do not count against this work.
 $notCounted = 'intended', 'pre_existing'
 $breaking = @($checks | Where-Object { $_.status -eq 'fail' -and $_.severity -eq 'breaking' -and $notCounted -notcontains $_.attribution })

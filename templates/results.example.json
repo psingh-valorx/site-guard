@@ -27,6 +27,7 @@
     {
       "area": "form",
       "name": "Form 1000 real submission",
+      "form_id": "1000",
       "page": "/demo",
       "status": "fail",
       "severity": "breaking",

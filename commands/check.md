@@ -94,6 +94,8 @@ State the scope in one or two lines before testing.
 
 For each form on an affected page, and each `key_forms` entry:
 
+**Record whether each form loads.** For every form tested on a page in Chrome, add one check named "Form <id> loads" with `form_id`, the page, and `form_renders` set to `true` or `false`. Put `form_id` on every other check about that form too. If `form_renders` is `false`, the report fails every check on that form on that page, so don't count any of them as passing.
+
 **Compare with production.** Run `read-page.ps1` on the dev and production copy of the page (see Step 6), and compare `marketo_form_ids`. A form ID that's on production but missing or different on dev is `breaking`. This is the only check `key_forms` get unless they're on an affected page.
 
 Marketo renders its forms by script, so a plain read can't see their fields. Marketo hosts each form's fields, so dev and production share them as long as the form ID matches. A matching ID is a `pass` for this check, and the evidence must say that fields weren't read.
