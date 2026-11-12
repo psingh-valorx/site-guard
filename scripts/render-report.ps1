@@ -44,10 +44,16 @@ foreach ($c in $checks) {
 
 # Every page that had its SEO, image or layout checked needs an image size check. If it's missing,
 # add it as not verified, so a skipped size check can't pass unnoticed.
+# A check's page can name several pages ("/events, /about") or a group ("/events and its detail pages"),
+# so compare the paths inside it. Files such as /sitemap.xml aren't pages and need no image check.
+function PagePaths($s) {
+    return @([regex]::Matches([string]$s, '(?<![\w.])/[\w\-./]*') | ForEach-Object { $_.Value.TrimEnd('.', '/') } | ForEach-Object { if ($_ -eq '') { '/' } else { $_ } } | Where-Object { $_ -notmatch '\.[a-z0-9]{2,4}$' })
+}
 $pageAreas = 'seo', 'image', 'layout', 'page'
-$checkedPages = @($checks | Where-Object { $pageAreas -contains $_.area -and $_.page } | ForEach-Object { $_.page } | Sort-Object -Unique)
+$checkedPages = @($checks | Where-Object { $pageAreas -contains $_.area -and $_.page } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
+$sizedPages = @($checks | Where-Object { $_.name -match '(?i)image size' } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
 foreach ($p in $checkedPages) {
-    if (@($checks | Where-Object { $_.page -eq $p -and $_.name -match '(?i)image size' }).Count -eq 0) {
+    if ($sizedPages -notcontains $p) {
         $checks += [pscustomobject]@{ area = 'image'; name = 'Image sizes'; page = $p; status = 'not_verified'; severity = 'warning'; evidence = 'Added by the report: no image size check was recorded for this page.' }
     }
 }
