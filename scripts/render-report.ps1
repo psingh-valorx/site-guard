@@ -4,7 +4,8 @@ param(
     [Parameter(Mandatory = $true)][string]$ResultsFile,
     [string]$OutDir = (Join-Path $env:USERPROFILE '.site-guard\reports'),
     [string]$CheckpointFile = (Join-Path $env:USERPROFILE '.site-guard\state\checkpoints.json'),
-    [switch]$NoCheckpoint
+    [switch]$NoCheckpoint,
+    [switch]$NoReveal   # don't open File Explorer at the report
 )
 
 $ErrorActionPreference = 'Stop'
@@ -326,6 +327,13 @@ if (-not $NoCheckpoint) {
     [IO.File]::WriteAllText($CheckpointFile, (ConvertTo-Json -InputObject @($runs) -Depth 6), (New-Object System.Text.UTF8Encoding($false)))
 }
 
+# Open File Explorer with the report selected. Chat links can't open folders, so the script does it.
+$revealed = $false
+if (-not $NoReveal) {
+    $target = if (-not $pdfError -and (Test-Path $pdfFile)) { $pdfFile } else { $htmlFile }
+    try { Start-Process explorer.exe -ArgumentList "/select,`"$((Get-Item $target).FullName)`""; $revealed = $true } catch {}
+}
+
 [pscustomobject]@{
     verdict = $verdict
     safe_to_publish = $safe
@@ -340,7 +348,8 @@ if (-not $NoCheckpoint) {
     pdf_error = $pdfError
     # Ready-made Markdown links, so the chat can show the report as something to click.
     pdf_link = $(if ($pdfError -or -not (Test-Path $pdfFile)) { $null } else { "[Open the PDF report]($(([uri](Get-Item $pdfFile).FullName).AbsoluteUri))" })
-    folder_link = "[Open the reports folder]($(([uri]((Get-Item $OutDir).FullName.TrimEnd('\') + '\')).AbsoluteUri))"
+    folder_path = (Get-Item $OutDir).FullName
+    folder_opened = $revealed
     pdf_path = $(if ($pdfError -or -not (Test-Path $pdfFile)) { $null } else { (Get-Item $pdfFile).FullName })
     html_link = $(if (Test-Path $htmlFile) { "[Open the report in a browser]($(([uri](Get-Item $htmlFile).FullName).AbsoluteUri))" } else { $null })
 } | ConvertTo-Json

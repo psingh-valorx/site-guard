@@ -221,10 +221,10 @@ Close the tab you opened. Tell the user the verdict, the answer to "Safe to publ
 
 ```
 **Report:** <pdf_link>
-**Folder:** <folder_link>
+**Folder:** `<folder_path>` (opened in File Explorer)
 **Path:** `<pdf_path>`
 ```
 
-If there's no PDF, use `html_link` on the first line and the HTML file's path on the last.
+If there's no PDF, use `html_link` on the first line and the HTML file's path on the last. If `folder_opened` is false, leave out "(opened in File Explorer)".
 
 If a real submission was made, say that cleanup was still scheduled when the report was made, and when it's due.
