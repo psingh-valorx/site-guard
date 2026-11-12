@@ -17,13 +17,22 @@ function Done($obj) { $obj | ConvertTo-Json -Depth 6; exit 0 }
 
 $sessionCertain = $true
 $recentOthers = 0
+$configRoot = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $env:USERPROFILE '.claude' }
+$projectsDir = Join-Path $configRoot 'projects'
+if (-not $TranscriptPath -and $SessionId -match '^[0-9a-fA-F-]{36}$') {
+    # The session ID names the transcript file, so find it in whichever project folder holds it.
+    # This works from any session, whatever folder the session started in or the shell is in now.
+    $TranscriptPath = Join-Path (Join-Path $projectsDir ($ProjectDir -replace '[^A-Za-z0-9]', '-')) "$SessionId.jsonl"
+    if (-not (Test-Path $TranscriptPath)) {
+        $found = @(Get-ChildItem $projectsDir -Directory -ErrorAction SilentlyContinue | ForEach-Object { Join-Path $_.FullName "$SessionId.jsonl" } | Where-Object { Test-Path $_ })
+        if ($found.Count -eq 0) { Done ([pscustomobject]@{ ok = $false; error = "No saved transcript for session $SessionId under $projectsDir." }) }
+        $TranscriptPath = $found[0]
+    }
+}
 if (-not $TranscriptPath) {
     $encoded = $ProjectDir -replace '[^A-Za-z0-9]', '-'
-    $dir = Join-Path $env:USERPROFILE ".claude\projects\$encoded"
-    if (-not (Test-Path $dir)) { Done ([pscustomobject]@{ ok = $false; error = "No transcript folder at $dir." }) }
-    if ($SessionId -match '^[0-9a-fA-F-]{36}$') {
-        $TranscriptPath = Join-Path $dir "$SessionId.jsonl"
-    }
+    $dir = Join-Path $projectsDir $encoded
+    if (-not (Test-Path $dir)) { Done ([pscustomobject]@{ ok = $false; error = "No transcript folder at $dir. Run from the folder where this session started." }) }
     else {
         # No session ID: assume the newest transcript, but say so if another session was active too.
         $all = @(Get-ChildItem $dir -Filter *.jsonl | Sort-Object LastWriteTime -Descending)

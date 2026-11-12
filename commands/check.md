@@ -48,7 +48,7 @@ If Webflow isn't connected, tell the user, add a `not_verified` check named "Pub
 
 ## Step 3: Change scope
 
-Don't rely on your context alone, because a large session may have been compacted. Always read the saved transcript, from the folder where this session started:
+Don't rely on your context alone, because a large session may have been compacted. Always read the saved transcript. The script finds it by session ID, from any folder:
 
 ```
 powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scripts/read-session.ps1" -SessionId "${CLAUDE_SESSION_ID}"
