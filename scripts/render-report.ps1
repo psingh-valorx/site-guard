@@ -57,6 +57,14 @@ foreach ($p in $checkedPages) {
         $checks += [pscustomobject]@{ area = 'image'; name = 'Image sizes'; page = $p; status = 'not_verified'; severity = 'warning'; evidence = 'Added by the report: no image size check was recorded for this page.' }
     }
 }
+# Every worked page must also be opened in Chrome and its console read. A page skipped there,
+# even if noted under limits, is added as not verified, so the run can't read as a full pass.
+$consolePages = @($checks | Where-Object { $_.name -match '(?i)console' } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
+foreach ($p in @(Arr $r.scope.worked_pages | ForEach-Object { PagePaths $_ } | Sort-Object -Unique)) {
+    if ($consolePages -notcontains $p) {
+        $checks += [pscustomobject]@{ area = 'page'; name = 'Console errors'; page = $p; status = 'not_verified'; severity = 'warning'; evidence = 'Added by the report: this worked page was not opened in Chrome with its console read.' }
+    }
+}
 $r | Add-Member -NotePropertyName checks -NotePropertyValue $checks -Force
 
 # Issues left open by this session's last run must be accounted for, so none can be forgotten.

@@ -163,6 +163,8 @@ If a page shows a console error on dev and its `scripts_hash` matches production
 
 Use `javascript_tool` on dev for anything that needs a browser, such as broken images (`naturalWidth` 0). Normalize hostnames first, except canonical tags, and skip `known_differences`. Read console errors and failed requests. Console tracking only starts once you've called `read_console_messages`, so call it first, reload the page, then read it again. Otherwise errors during page load are missed.
 
+**Open every worked page in Chrome and read its console.** Record one check per worked page named "Console errors", with the page's exact path. Use `pass` with "No errors" as the evidence, or list each error. Never group pages in this check, and never carry it over from an earlier run: read the console again. A page you didn't open is `not_verified`. Never move a check that didn't run into `limits` instead of recording it, because the report adds any missing console check as `not_verified`.
+
 Check layout at each width in `viewports`. Browser window resizing often doesn't change the page width, so confirm `window.innerWidth` after resizing. If it didn't change, use `javascript_tool` on the dev page to add a hidden-from-view iframe of the same dev URL at that width, read `scrollWidth`, `clientWidth` and the H1's position inside it, then remove it. Links and forms inside it are never clicked.
 
 If the page returns 404 on production, it's a new page. Skip the comparison rules and apply the rest. A page the session deleted on purpose is `intended`.
