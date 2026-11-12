@@ -252,6 +252,9 @@ $follow = @(Arr $r.followups)
 if ($follow.Count -gt 0) { Add '<h2>To do by hand</h2>'; Add (ListHtml $follow) }
 
 Add '<h2>Coverage</h2>'
+# Repeat everything unverified at the end, so nothing that blocks a clean result is only in a table above.
+Add '<h3>Could not be verified</h3>'
+Add (CheckTable $unverified)
 Add '<h3>Not submitted or skipped</h3>'
 Add (CheckTable ($checks | Where-Object { @('not_submitted', 'skipped') -contains $_.status }))
 Add '<h3>Limits of this run</h3>'; Add (ListHtml $r.limits)
