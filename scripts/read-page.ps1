@@ -83,6 +83,44 @@ foreach ($t in $imgs) {
 }
 $toReview = @($seen.Keys | Where-Object { ($_ -split '[?#]')[0] -match '(?i)\.(png|jpe?g|gif)$' } | ForEach-Object { [uri]::UnescapeDataString(($_ -split '[?#]')[0].Split('/')[-1]) } | Select-Object -First 60)
 
+# File size of each unique image, read from the response headers, so size checks never depend on a browser.
+# This is the uploaded original. Browsers may load a smaller srcset copy, but the original is what to fix.
+function ImageBytes($u) {
+    foreach ($method in 'HEAD', 'GET') {
+        $res = $null
+        try {
+            $req = [System.Net.HttpWebRequest]::Create($u)
+            $req.Method = $method
+            $req.Timeout = 15000
+            $req.UserAgent = 'Site Guard image check'
+            if ($method -eq 'GET') { $req.AddRange(0, 0) }
+            $res = $req.GetResponse()
+            $range = $res.Headers['Content-Range']
+            if ($range -match '/(\d+)\s*$') { return [long]$Matches[1] }
+            if ($method -eq 'HEAD' -and $res.ContentLength -gt 0) { return [long]$res.ContentLength }
+        }
+        catch {}
+        finally { if ($res) { $res.Close() } }
+    }
+    return $null
+}
+$imageSizes = @()
+$sizesUnknown = @()
+foreach ($src in @($seen.Keys | Select-Object -First 150)) {
+    $abs = $null
+    if (-not [uri]::TryCreate($uri, $src, [ref]$abs) -or $abs.Scheme -notmatch '^https?$') { continue }
+    $name = [uri]::UnescapeDataString($abs.AbsolutePath.Split('/')[-1])
+    $bytes = ImageBytes $abs.AbsoluteUri
+    if ($null -eq $bytes) { $sizesUnknown += $name; continue }
+    $imageSizes += [pscustomobject]@{
+        file   = $name
+        format = [IO.Path]::GetExtension($abs.AbsolutePath).TrimStart('.').ToLower()
+        kb     = [math]::Round($bytes / 1KB)
+        url    = $abs.AbsoluteUri
+    }
+}
+$imageSizes = @($imageSizes | Sort-Object kb -Descending)
+
 $links = @([regex]::Matches($body, '(?is)<a\b[^>]*>') | ForEach-Object { Attr $_.Value 'href' } | Where-Object { $_ -and $_ -match '^/' } | ForEach-Object { ($_ -split '[?#]')[0] } | Sort-Object -Unique)
 
 $linksChecked = 0
@@ -128,6 +166,8 @@ Done ([pscustomobject]@{
     images_unique    = $seen.Count
     image_formats    = $formats
     images_to_review = $toReview
+    image_sizes      = $imageSizes
+    image_sizes_unknown = $sizesUnknown
     missing_alt      = $missingAlt
     missing_dimensions = $missingDims
     lazy_loaded      = $lazy

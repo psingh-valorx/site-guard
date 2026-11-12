@@ -153,7 +153,7 @@ Add `-CheckLinks` on the dev copy to test its internal links. Check each page's 
 
 If a page shows a console error on dev and its `scripts_hash` matches production, the code is the same on both, so mark the error `pre_existing` and say why. If the hashes differ, use `needs_review`, unless the session's work clearly caused it.
 
-Use `javascript_tool` on dev for anything that needs a browser, such as image sizes. Normalize hostnames first, except canonical tags, and skip `known_differences`. Read console errors and failed requests. Console tracking only starts once you've called `read_console_messages`, so call it first, reload the page, then read it again. Otherwise errors during page load are missed.
+Use `javascript_tool` on dev for anything that needs a browser, such as broken images (`naturalWidth` 0). Normalize hostnames first, except canonical tags, and skip `known_differences`. Read console errors and failed requests. Console tracking only starts once you've called `read_console_messages`, so call it first, reload the page, then read it again. Otherwise errors during page load are missed.
 
 Check layout at each width in `viewports`. Browser window resizing often doesn't change the page width, so confirm `window.innerWidth` after resizing. If it didn't change, use `javascript_tool` on the dev page to add a hidden-from-view iframe of the same dev URL at that width, read `scrollWidth`, `clientWidth` and the H1's position inside it, then remove it. Links and forms inside it are never clicked.
 
@@ -163,7 +163,7 @@ Run every rule against production as well. Anything production already has gets 
 
 Every finding must be specific enough to act on. Name what's affected, give the actual value and the expected one, such as "Title is 74 characters, expected 50-60: <title>", and put a recommendation in `fix`.
 
-For image size, use the `transfer` or `decoded` size from `performance.getEntriesByType('resource')`. If the size isn't available, mark that check `skipped`.
+**Image size is required on every affected page.** Take sizes from the script's `image_sizes` (file size in KB, largest first) and apply `size_limits_kb`. Decide each image's category from where it sits on the page: hero, content, or thumbnail. Use content when unsure. Treat any SVG over 100 KB as a warning too, since it usually has a picture embedded inside it. Record one check per page named "Image sizes", listing every image over its limit with its file name, size and limit, or saying that all N images are within the limits. For images listed in `image_sizes_unknown`, try `performance.getEntriesByType('resource')` in Chrome. Any image still without a size makes that check `not_verified`, never `pass`. Background images set in CSS aren't in `image_sizes`: say so in the evidence.
 
 Group repeated findings into one row with a count and the names of the items affected, up to 10, rather than one row per image. The image `format` rule sets its own list format.
 

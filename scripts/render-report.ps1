@@ -42,6 +42,17 @@ foreach ($c in $checks) {
     }
 }
 
+# Every page that had its SEO, image or layout checked needs an image size check. If it's missing,
+# add it as not verified, so a skipped size check can't pass unnoticed.
+$pageAreas = 'seo', 'image', 'layout', 'page'
+$checkedPages = @($checks | Where-Object { $pageAreas -contains $_.area -and $_.page } | ForEach-Object { $_.page } | Sort-Object -Unique)
+foreach ($p in $checkedPages) {
+    if (@($checks | Where-Object { $_.page -eq $p -and $_.name -match '(?i)image size' }).Count -eq 0) {
+        $checks += [pscustomobject]@{ area = 'image'; name = 'Image sizes'; page = $p; status = 'not_verified'; severity = 'warning'; evidence = 'Added by the report: no image size check was recorded for this page.' }
+    }
+}
+$r | Add-Member -NotePropertyName checks -NotePropertyValue $checks -Force
+
 # Issues left open by this session's last run must be accounted for, so none can be forgotten.
 $earlierList = New-Object System.Collections.ArrayList
 foreach ($x in (Arr $r.earlier_issues)) { [void]$earlierList.Add($x) }

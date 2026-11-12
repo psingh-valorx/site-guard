@@ -92,6 +92,16 @@
       "attribution": "this_session",
       "evidence": "62 SVG, 45 AVIF, 13 PNG, 10 WebP. hero-image.png, PNG, 640 KB.",
       "fix": "Use WebP for hero-image.png."
+    },
+    {
+      "area": "image",
+      "name": "Image sizes",
+      "page": "/demo",
+      "status": "fail",
+      "severity": "warning",
+      "attribution": "this_session",
+      "evidence": "1 of 48 images over its limit: hero-image.png, 640 KB, hero limit 300 KB.",
+      "fix": "Export hero-image.png as WebP under 300 KB."
     }
   ],
   "earlier_issues": [
