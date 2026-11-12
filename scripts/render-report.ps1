@@ -340,5 +340,7 @@ if (-not $NoCheckpoint) {
     pdf_error = $pdfError
     # Ready-made Markdown links, so the chat can show the report as something to click.
     pdf_link = $(if ($pdfError -or -not (Test-Path $pdfFile)) { $null } else { "[Open the PDF report]($(([uri](Get-Item $pdfFile).FullName).AbsoluteUri))" })
+    folder_link = "[Open the reports folder]($(([uri]((Get-Item $OutDir).FullName.TrimEnd('\') + '\')).AbsoluteUri))"
+    pdf_path = $(if ($pdfError -or -not (Test-Path $pdfFile)) { $null } else { (Get-Item $pdfFile).FullName })
     html_link = $(if (Test-Path $htmlFile) { "[Open the report in a browser]($(([uri](Get-Item $htmlFile).FullName).AbsoluteUri))" } else { $null })
 } | ConvertTo-Json

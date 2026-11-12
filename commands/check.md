@@ -217,6 +217,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scrip
 
 If it reports invalid JSON or an unknown status, fix the file and run it again. If its `not_rechecked` list isn't empty, those are issues left open by this session's last run. Recheck each one, add it to `earlier_issues` with the same name and page, and run the script again. Never say you don't know what they are. If `pdf_error` is set, tell the user and give them the `html` path. If Windows blocks PowerShell scripts altogether, tell the user and give your results in the chat, saying that the report script couldn't confirm the verdict.
 
-Close the tab you opened. Tell the user the verdict, the answer to "Safe to publish to production?", the breaking issues in a line each, anything to do by hand, and the report. End your message with the script's `pdf_link` exactly as given, on its own line, so the user can click it, followed by the full path to the PDF in backticks. If there's no PDF, give `html_link` instead.
+Close the tab you opened. Tell the user the verdict, the answer to "Safe to publish to production?", the breaking issues in a line each, anything to do by hand, and the report. End your message with exactly these three lines, using the script's output as given:
+
+```
+**Report:** <pdf_link>
+**Folder:** <folder_link>
+**Path:** `<pdf_path>`
+```
+
+If there's no PDF, use `html_link` on the first line and the HTML file's path on the last.
 
 If a real submission was made, say that cleanup was still scheduled when the report was made, and when it's due.
