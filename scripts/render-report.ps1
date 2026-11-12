@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 
 function Arr($x) { if ($null -eq $x) { return @() } return @($x) }
 function E($x) { if ($null -eq $x) { return '' } return [System.Net.WebUtility]::HtmlEncode([string]$x) }
-function OrDash($x) { if ([string]::IsNullOrWhiteSpace([string]$x)) { return '&mdash;' } return (E $x) }
+function OrDash($x) { if ([string]::IsNullOrWhiteSpace([string]$x)) { return '&mdash;' } return ((E ([string]$x).Trim()) -replace "\r?\n", '<br>') }
 function When($x) {
     if ([string]::IsNullOrWhiteSpace([string]$x)) { return '&mdash;' }
     try { return ([datetime]::Parse([string]$x).ToUniversalTime().ToString('d MMM yyyy, HH:mm', [Globalization.CultureInfo]::InvariantCulture) + ' UTC') }
@@ -223,7 +223,7 @@ function CheckTable($rows) {
         if ($c.status -eq 'fail' -and $c.severity -eq 'warning') { $txt = 'Warning' }
         if ($c.status -eq 'fail' -and $c.severity -eq 'info') { $txt = 'Info'; $cls = 'info' }
         $evidence = OrDash $c.evidence
-        if ($c.fix) { $evidence += "<br><b>Fix:</b> $(E $c.fix)" }
+        if ($c.fix) { $evidence += "<br><b>Fix:</b> $(OrDash $c.fix)" }
         $out += "<tr><td>$(E $c.name)</td><td>$(OrDash $c.page)</td><td>$(Pill $cls $txt)</td><td>$evidence</td></tr>"
     }
     return $out + '</tbody></table>'

@@ -100,7 +100,7 @@
       "status": "fail",
       "severity": "warning",
       "attribution": "this_session",
-      "evidence": "1 of 48 images over its limit: hero-image.png, 640 KB, hero limit 300 KB.",
+      "evidence": "1 image is too large (hero limit 300 KB):\nhero-image.png: 640 KB",
       "fix": "Export hero-image.png as WebP under 300 KB."
     }
   ],

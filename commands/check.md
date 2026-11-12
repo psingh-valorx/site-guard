@@ -173,7 +173,19 @@ Run every rule against production as well. Anything production already has gets 
 
 Every finding must be specific enough to act on. Name what's affected, give the actual value and the expected one, such as "Title is 74 characters, expected 50-60: <title>", and put a recommendation in `fix`.
 
-**Image size is required on every affected page.** Take sizes from the script's `image_sizes` (file size in KB, largest first) and apply `size_limits_kb`. Decide each image's category from where it sits on the page: hero, content, or thumbnail. Use content when unsure. Treat any SVG over 100 KB as a warning too, since it usually has a picture embedded inside it. Record one check per page named "Image sizes", listing every image over its limit with its file name, size and limit, or saying that all N images are within the limits. For images listed in `image_sizes_unknown`, try `performance.getEntriesByType('resource')` in Chrome. Any image still without a size makes that check `not_verified`, never `pass`. Background images set in CSS aren't in `image_sizes`: say so in the evidence.
+**Write evidence and fixes for a non-technical reader.** Use short plain sentences. Never use script field names or internal labels in them, such as `image_sizes_unknown`, `pre_existing`, `scripts_hash`, `needs_review` or `read-page.ps1`: say "already on the live site" or "couldn't be measured" instead. Leave out what's normal: don't mention a list that was empty. Put each item on its own line with a newline (`\n`), which the report shows as a line break.
+
+**Image size is required on every affected page.** Take sizes from the script's `image_sizes` (file size in KB, largest first) and apply `size_limits_kb`. Decide each image's category from where it sits on the page: hero, content, or thumbnail. Use content when unsure. Treat any SVG over 100 KB as a warning too, since it usually has a picture embedded inside it. Record one check per page named "Image sizes", with evidence laid out exactly like this, one image per line:
+
+```
+3 images are too large (limit 200 KB):
+df24-booth-01.webp: 227 KB
+df24-booth-04.webp: 220 KB
+df24-booth-08.webp: 209 KB
+Also on the live site already: cmc-logo.svg, 1,087 KB
+```
+
+Put the limit for each category in the first line, as "(hero limit 300 KB)" and so on, and add "critical" after a size above the second number. Leave out the last line if nothing is already on the live site. If every image is within its limit, the evidence is just "All 56 images are within the size limits." Put the fix as one short line, such as "Compress these 3 images to under 200 KB." For images listed in `image_sizes_unknown`, try `performance.getEntriesByType('resource')` in Chrome. Any image still without a size makes that check `not_verified`, never `pass`. Background images set in CSS aren't in `image_sizes`: say so in the evidence.
 
 Group repeated findings into one row with a count and the names of the items affected, up to 10, rather than one row per image. The image `format` rule sets its own list format.
 
