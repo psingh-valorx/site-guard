@@ -149,7 +149,15 @@ For each affected page, apply `seo-rules.yml`. Read both copies with this script
 powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scripts/read-page.ps1" -Url "<url>" -AllowedHosts "<dev host>,<production host>"
 ```
 
-Add `-CheckLinks` on the dev copy to test its internal links. Check each page's links only once per run. For the sitemap rule, run the script on `/sitemap.xml` and read `status` and `xml_valid`.
+Add `-CheckLinks` on the dev copy to test its internal links. Check each page's links only once per run.
+
+With more than one page, read them all in one call instead, which runs the reads side by side and returns a JSON array in the same order, with the same fields per page:
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scripts/read-pages.ps1" -Urls "<dev url 1>,<production url 1>,<dev url 2>,..." -AllowedHosts "<dev host>,<production host>" -CheckLinksHost "<dev host>"
+```
+
+Speed comes only from these scripts. Do all the browser work, form tests and judgment yourself in this conversation, one page at a time, and never hand any of it to a subagent: subagents lack this session's history and would share one browser. For the sitemap rule, run the script on `/sitemap.xml` and read `status` and `xml_valid`.
 
 If a page shows a console error on dev and its `scripts_hash` matches production, the code is the same on both, so mark the error `pre_existing` and say why. If the hashes differ, use `needs_review`, unless the session's work clearly caused it.
 
