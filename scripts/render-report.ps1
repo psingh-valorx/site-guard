@@ -98,6 +98,18 @@ if ($sinceRun) {
 }
 $notRechecked = @($earlierList | Where-Object { $_.status -eq 'not_rechecked' }).Count
 
+# An issue this session's last run left open belongs to this session. If it's still failing, it stays
+# this session's even when a later publish has put it on the live site, so it can't drop out as
+# "already on production".
+if ($sinceRun) {
+    foreach ($c in $checks) {
+        if ($c.status -ne 'fail' -or ($c.attribution -ne 'pre_existing' -and $c.attribution -ne 'intended')) { continue }
+        if (@(Arr $sinceRun.open_issues | Where-Object { $_.name -eq $c.name -and $_.page -eq $c.page }).Count -eq 0) { continue }
+        $c | Add-Member -NotePropertyName attribution -NotePropertyValue 'this_session' -Force
+        $c | Add-Member -NotePropertyName evidence -NotePropertyValue ("$($c.evidence)`nCounted by the report: this was left open by this session's last check. It's on the live site only because of a later publish.").Trim() -Force
+    }
+}
+
 # --- Verdict ---
 # A form that didn't load on a page fails every check on that form there. Otherwise a check that
 # only compares form IDs could pass while visitors see no form.
