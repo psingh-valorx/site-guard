@@ -67,6 +67,8 @@ $publishes = New-Object System.Collections.ArrayList
 $cmsPublishes = New-Object System.Collections.ArrayList
 $toolCalls = 0; $lines = 0; $unparsed = 0; $compactions = 0
 $first = $null; $last = $null
+# Whole-session view, ignoring the last check: when the session started and every page it changed.
+$sessionStart = $null; $sessionPages = @{}
 
 $reader = New-Object System.IO.StreamReader($TranscriptPath, [Text.Encoding]::UTF8)
 try {
@@ -78,11 +80,26 @@ try {
         try { $o = $json.DeserializeObject($line) } catch { $unparsed++; continue }
         if ($o['type'] -ne 'assistant') { continue }
         $ts = $o['timestamp']
-        if ($sinceTime -and $ts -and ([datetime]::Parse($ts).ToUniversalTime() -le $sinceTime)) { continue }
+        $inWindow = -not ($sinceTime -and $ts -and ([datetime]::Parse($ts).ToUniversalTime() -le $sinceTime))
         foreach ($block in @($o['message']['content'])) {
             if ($block -isnot [System.Collections.IDictionary] -or $block['type'] -ne 'tool_use') { continue }
             $name = [string]$block['name']
             if (-not $name.StartsWith('mcp__claude_ai_Webflow__')) { continue }
+            if (-not $sessionStart) { $sessionStart = $ts }
+            # A call changes something if it uses a builder tool or any action that isn't a read.
+            $callTool = $name -replace '^mcp__claude_ai_Webflow__', ''
+            $callInput = $block['input']
+            $isWrite = $callTool -match '_builder$'
+            if ($callInput -is [System.Collections.IDictionary] -and $callInput['actions']) {
+                foreach ($a in @($callInput['actions'])) {
+                    if ($a -isnot [System.Collections.IDictionary]) { continue }
+                    foreach ($k in @($a.Keys)) { if ($k -ne 'label' -and $k -notmatch $readAction -and $k -ne 'publish_site') { $isWrite = $true } }
+                }
+            }
+            if ($isWrite) {
+                foreach ($m in [regex]::Matches($json.Serialize($callInput), '"(pageId|page_id)"\s*:\s*"([0-9a-f]{24})"')) { $sessionPages[$m.Groups[2].Value] = 1 }
+            }
+            if (-not $inWindow) { continue }
             $toolCalls++
             if (-not $first) { $first = $ts }
             $last = $ts
@@ -142,6 +159,8 @@ Done ([pscustomobject]@{
     compactions_found   = $compactions
     webflow_tool_calls  = $toolCalls
     first_activity      = $first
+    session_started_at  = $sessionStart
+    session_page_ids    = @($sessionPages.Keys | Select-Object -First $limit)
     last_activity       = $last
     change_actions      = $writes
     page_ids            = @($ids.page.Keys | Select-Object -First $limit)

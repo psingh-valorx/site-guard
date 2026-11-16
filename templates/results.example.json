@@ -19,6 +19,9 @@
     "worked_pages": [
       "/demo"
     ],
+    "session_pages": [
+      "/demo"
+    ],
     "shared_changes": [],
     "cms_items": [],
     "live_cms_publishes": []

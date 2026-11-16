@@ -70,7 +70,7 @@ $o = Render (Results 't16' $c @('/events', '/events/x', '/events/y')); Ok 'group
 $c = @((Chk 'seo' 'Links' '/events/x, /events/y' 'pass')) + (Full '/events/x') + (Full '/events/y')
 $o = Render (Results 't17' $c @('/events/x', '/events/y')); Ok 'comma list of pages is matched' ($o.verdict -eq 'PASS') "$($o.verdict) $($o.why)"
 $c = (Full '/a') + @((Chk 'layout' 'Home layout' '/' 'pass'))
-$o = Render (Results 't18' $c @('/a')); Ok 'non-worked page with a layout check still needs image rows' ($o.verdict -eq 'INCOMPLETE') "$($o.verdict)"
+$o = Render (Results 't18' $c @('/a')); Ok 'a layout check on a page the session didn''t change needs no image rows' ($o.verdict -eq 'PASS') "$($o.verdict)"
 
 Write-Host "`n== Images block =="
 $c = @((Chk 'image' 'Image sizes' '/a' 'fail' 'warning' 'this_session'), (Chk 'image' 'PNG images' '/a' 'pass'), (Chk 'page' 'Console errors' '/a' 'pass'))
@@ -145,4 +145,29 @@ $o = Render (Results 't46' ((Full '/a')) @('https://dev.example/a')); Ok 'worked
 # 11. Attribution values.
 $o = Render (Results 't47' ((Full '/a') + (Chk 'seo' 'No H1' '/a' 'fail' 'breaking' 'Pre-existing')) @('/a')); Ok '"Pre-existing" is understood' ($o.verdict -eq 'PASS') "$($o.verdict)"
 $o = Render (Results 't48' ((Full '/a') + (Chk 'seo' 'No H1' '/a' 'fail' 'breaking' 'old stuff')) @('/a')) -Raw; Ok 'unknown attribution is rejected' ($o -match 'unknown attribution') ($o.Substring(0, [math]::Min(150, $o.Length)))
+Write-Host "`n== Session scope =="
+function WithSession($r, $pages) { $r.scope.session_pages = @($pages); $r }
+# Image checks on pages the session never changed are left out.
+$c = (Full '/a') + @((Chk 'image' 'Image sizes' '/' 'fail' 'warning' 'pre_existing'), (Chk 'image' 'PNG images' '/' 'fail' 'breaking' 'pre_existing'), (Chk 'page' 'Broken images' '/wave' 'fail' 'breaking' 'pre_existing'), (Chk 'image' 'Image sizes' '/wave' 'not_verified' 'info'))
+$r = WithSession (Results 't50' $c @('/a')) @('/a')
+$o = Render $r; $h = Get-Content $o.html -Raw
+Ok 'image checks on other pages are left out' ($o.verdict -eq 'PASS' -and $h -notmatch '>/wave<' -and $h -match 'Left out 4 image check') "$($o.verdict) $($o.why)"
+# ...unless they are blamed on this session.
+$c = (Full '/a') + @((Chk 'image' 'Image sizes' '/' 'fail' 'breaking' 'this_session'))
+$o = Render (WithSession (Results 't51' $c @('/a')) @('/a')); Ok 'an image check on another page blamed on the session stays' ($o.verdict -eq 'BREAKING') "$($o.verdict)"
+# Old image issues on other pages carried from the last run don't come back.
+$cp = Join-Path $work 'cp-scope.json'
+WriteCp $cp @([pscustomobject]@{ session_id = 'sess-t52'; run_id = 'old'; finished_at = '2026-11-01T00:00:00Z'; open_issues = @([pscustomobject]@{ name = 'Image sizes'; page = '/'; status = 'not_verified'; severity = 'breaking' }, [pscustomobject]@{ name = 'PNG images'; page = '/wave'; status = 'fail'; severity = 'breaking' }) })
+$o = Render (WithSession (Results 't52' ((Full '/a')) @('/a')) @('/a')) $cp
+Ok 'carried image issues on other pages are dropped' ($o.verdict -eq 'PASS' -and @($o.not_rechecked).Count -eq 0) "$($o.verdict) $($o.why)"
+# Pages changed earlier in the session still need image checks on every run.
+$o = Render (WithSession (Results 't53' ((Full '/a')) @('/a')) @('/a', '/b')); Ok 'an earlier session page with no image rows -> INCOMPLETE' ($o.verdict -eq 'INCOMPLETE') "$($o.verdict)"
+$c = (Full '/a') + @((Chk 'image' 'Image sizes' '/b' 'fail' 'warning' 'this_session'), (Chk 'image' 'PNG images' '/b' 'pass'))
+$o = Render (WithSession (Results 't54' $c @('/a')) @('/a', '/b')); Ok 'an oversized session image on an earlier page -> BREAKING' ($o.verdict -eq 'BREAKING') "$($o.verdict)"
+$c = (Full '/a') + @((Chk 'image' 'Image sizes' '/b' 'fail' 'warning' 'pre_existing'), (Chk 'image' 'PNG images' '/b' 'fail' 'warning' 'pre_existing'))
+$o = Render (WithSession (Results 't55' $c @('/a')) @('/a', '/b')); $h = Get-Content $o.html -Raw
+Ok 'older images on a session page are listed but do not block' ($o.verdict -eq 'PASS' -and $h -match '>/b<') "$($o.verdict)"
+# Without session_pages (older results), the worked pages set the scope.
+$c = (Full '/a') + @((Chk 'image' 'Image sizes' '/z' 'fail' 'warning' 'pre_existing'))
+$o = Render (Results 't56' $c @('/a')); Ok 'older results without session_pages still work' ($o.verdict -eq 'PASS') "$($o.verdict)"
 Write-Host "`n$($script:n - $script:fails) of $($script:n) passed"

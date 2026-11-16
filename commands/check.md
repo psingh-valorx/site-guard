@@ -62,7 +62,7 @@ Use its `session_id` as this run's `session_id`. If `session_certain` is false, 
 
 If `previous_run` is set, this session has been checked before. The script has already limited its output to work after that run, and `changes_since` shows when that was. Recheck each entry in `previous_run.open_issues`. If it's not set, this is the session's first run.
 
-The script also gives `last_real_submission_at`, used in Step 4. It lists the Webflow change actions, page, collection, item and component IDs, and publishes. Those calls include failed attempts, and some IDs are only read, so use your context to narrow them down where you can. Turn page IDs into paths with the Webflow `list_pages` action, and treat component IDs as shared changes. Use `last_activity` and `publishes` for `unpublished_changes` in Step 2. Add `cms_item_publishes` to `live_cms_publishes`. If a `publishes` entry lists `custom_domains`, tell the user that work may already be live on production, and add it to `limits`, the same way as in Step 2: a fact, never a check. If the script fails, say so and rely on your context.
+The script also gives `last_real_submission_at`, used in Step 4. It lists the Webflow change actions, page, collection, item and component IDs, and publishes. Those calls include failed attempts, and some IDs are only read, so use your context to narrow them down where you can. Turn page IDs into paths with the Webflow `list_pages` action, and treat component IDs as shared changes. Do the same for `session_page_ids`, which lists every page this session changed since it began, and put the paths in `scope.session_pages`. Include the folder in each path, such as `/events/dreamforce-2024` for a page in the Events folder, and leave out pages that are drafts or templates. Note `session_started_at` for the image checks in Step 6. Never add a page to `worked_pages` or `session_pages` because you checked or investigated it: only pages this session actually changed belong there. Use `last_activity` and `publishes` for `unpublished_changes` in Step 2. Add `cms_item_publishes` to `live_cms_publishes`. If a `publishes` entry lists `custom_domains`, tell the user that work may already be live on production, and add it to `limits`, the same way as in Step 2: a fact, never a check. If the script fails, say so and rely on your context.
 
 Combine that with your context, then list:
 
@@ -179,30 +179,42 @@ Every finding must be specific enough to act on. Name what's affected, give the 
 
 **Write evidence and fixes for a non-technical reader.** Use short plain sentences. Never use script field names or internal labels in them, such as `image_sizes_unknown`, `pre_existing`, `scripts_hash`, `needs_review` or `read-page.ps1`: say "already on the live site" or "couldn't be measured" instead. Leave out what's normal: don't mention a list that was empty. Put each item on its own line with a newline (`\n`), which the report shows as a line break.
 
-**Image size is required on every affected page.** Take sizes from the script's `image_sizes` (file size in KB, largest first) and apply `size_limits_kb`. Decide each image's category from where it sits on the page: hero, content, or thumbnail. Use content when unsure. An SVG's limit is 100 KB, whatever its category, since a larger one usually has a picture embedded inside it. Record one check per page named "Image sizes", with evidence laid out exactly like this, one image per line:
+**Image checks cover every page this session changed, on every run.** Use `scope.session_pages` (see Step 3), not just the pages worked on since the last check, so an oversized photo from earlier in the session is never forgotten. Read them all with `read-pages.ps1`, dev and production together. Never run the image checks on pages the session didn't change, unless a shared change such as a component reaches them. The report leaves out image checks on other pages.
+
+Each page gets three checks, named exactly "Image sizes", "PNG images" and "Broken images".
+
+**Which images are this session's.** Each entry in `image_sizes` has `uploaded_at`, read from the Webflow file name. An image uploaded at or after `session_started_at` (from `read-session.ps1`) was added during this session: it's this session's, whatever production shows, because production may already hold this session's work. An image uploaded earlier was already in the site before the session; call it "on the page before this session" and attribute it `pre_existing`. For an image with no `uploaded_at` (not a Webflow upload), compare with production instead: new if it isn't there, or its size there is different.
+
+**Image sizes.** Apply `size_limits_kb` to `image_sizes` (file size in KB, largest first). Decide each image's category from where it sits on the page: hero, content, or thumbnail. Use content when unsure. An SVG's limit is 100 KB, whatever its category, since a larger one usually has a picture embedded inside it. Lay out the evidence exactly like this, one image per line:
 
 ```
-3 images are too large (limit 200 KB):
+3 images from this session are too large (limit 200 KB):
 df24-booth-01.webp: 227 KB
 df24-booth-04.webp: 220 KB
 df24-booth-08.webp: 209 KB
-Also on the live site already: cmc-logo.svg, 1,087 KB
+Also too large, on the page before this session:
+cmc-logo.svg: 1,087 KB (SVG limit 100 KB)
 ```
 
-Put the limit for each category in the first line, as "(hero limit 300 KB)" and so on, and add "critical" after a size above the second number. Leave out the last line if nothing is already on the live site. If every image is within its limit, the evidence is just "All 56 images are within the size limits." Put the fix as one short line, such as "Compress these 3 images to under 200 KB." For images listed in `image_sizes_unknown`, try `performance.getEntriesByType('resource')` in Chrome. Any image still without a size makes that check `not_verified`, never `pass`. Background images set in CSS aren't in `image_sizes`: say so in the evidence. Images in `broken_images` failed to load at all (the server returned an error, such as Webflow's placeholder for an image block with no image set). They aren't size problems: record them under the `broken-image` rule as one check per page named "Broken images", listing each file and its error, and attribute them by comparing with production like any other finding.
+Put the limit for each category in the first line, as "(hero limit 300 KB)" and so on, and add "critical" after a size above the second number. Leave out either group if it's empty. If every image is within its limit, the evidence is just "All 56 images are within the size limits." Put the fix as one short line, such as "Compress these 3 images to under 200 KB." If any of this session's images is over its limit, the check is `fail`, severity `breaking`, attribution `this_session`. If only older images are over, it's `fail` with attribution `pre_existing`: listed, but it doesn't block.
 
-**Oversized and PNG images block publishing.** An image is "new" if its file name isn't in the production copy's `image_sizes` for that page, or its size there is different. When production already holds this session's work (see Step 2), an image is new if the session added or replaced it, whatever production shows. Compare the dev and production outputs from `read-pages.ps1`. If any new image is over its limit, the "Image sizes" check is `fail`, severity `breaking`, attribution `this_session`. If only images already on the live site are over, it's `fail` with attribution `pre_existing`, so it's reported but doesn't block.
+For images listed in `image_sizes_unknown`, try `performance.getEntriesByType('resource')` in Chrome. Any image still without a size makes that check `not_verified`, never `pass`. Background images set in CSS aren't in `image_sizes`: say so in the evidence.
 
-Record one check per page named "PNG images" too, laid out the same way:
+**PNG images.** Laid out the same way:
 
 ```
-2 new PNG images:
-nightcap.png: 333 KB
+1 PNG image from this session:
 team-photo.png: 140 KB
-Also on the live site already: 500px-Hallmark_logo.svg.png
+Also PNG, on the page before this session:
+nightcap.png: 333 KB
+500px-Hallmark_logo.svg.png: 20 KB
 ```
 
-If any new image is a PNG, it's `fail`, severity `breaking`, attribution `this_session`, with the fix "Replace with WebP, or SVG for logos and icons." If the only PNGs are already on the live site, it's `fail` with attribution `pre_existing`. With no PNGs, it's `pass` with "No PNG images." The report treats every failed "Image sizes" or "PNG images" check as breaking, so the severity can't be lowered.
+If any of this session's images is a PNG, it's `fail`, severity `breaking`, attribution `this_session`, with the fix "Replace with WebP, or SVG for logos and icons." If only older images are PNGs, it's `fail` with attribution `pre_existing`. With no PNGs, it's `pass` with "No PNG images."
+
+**Broken images.** Images in `broken_images` failed to load at all: the server returned an error, as with Webflow's placeholder for an image block with no image set. List each file and its error. Attribute them by comparing with production like any other finding, and use `pass` with "No broken images." when there are none.
+
+The report treats every failed "Image sizes" or "PNG images" check as breaking, so the severity can't be lowered.
 
 Group repeated findings into one row with a count and the names of the items affected, up to 10, rather than one row per image. The image `format` rule sets its own list format. The "Image sizes" and "PNG images" checks list every image, not just 10.
 

@@ -111,6 +111,13 @@ function ImageBytes($u) {
     if ($errorCode -ge 400) { return -$errorCode }
     return $null
 }
+# Webflow names each uploaded file "<asset id>_<name>". The asset ID starts with its upload time in
+# seconds, so it tells whether an image was added during a session, whatever production shows.
+function UploadedAt($fileName) {
+    if ($fileName -notmatch '^([0-9a-f]{24})_') { return $null }
+    $secs = [Convert]::ToInt64($Matches[1].Substring(0, 8), 16)
+    return [DateTimeOffset]::FromUnixTimeSeconds($secs).UtcDateTime.ToString('yyyy-MM-ddTHH:mm:ssZ')
+}
 $imageSizes = @()
 $sizesUnknown = @()
 $brokenImages = @()
@@ -130,6 +137,7 @@ foreach ($src in @($seen.Keys)) {
         file   = $name
         format = [IO.Path]::GetExtension($abs.AbsolutePath).TrimStart('.').ToLower()
         kb     = [math]::Round($bytes / 1KB)
+        uploaded_at = UploadedAt $name
         url    = $abs.AbsoluteUri
     }
 }

@@ -74,6 +74,17 @@ function SamePage($a, $b) { return ([string]$a).Trim() -eq ([string]$b).Trim() }
 function IsSizeCheck($c) { return ([string]$c.name).Trim() -match '^(?i)image sizes?$' }
 function IsPngCheck($c) { return ([string]$c.name).Trim() -match '^(?i)png images?$' }
 function IsConsoleCheck($c) { return ([string]$c.name).Trim() -match '^(?i)console errors?$' }
+function IsImageCheck($c) { return ((IsSizeCheck $c) -or (IsPngCheck $c) -or (([string]$c.name).Trim() -match '^(?i)broken images?$')) }
+
+# The pages this session is answerable for: every page it changed in the whole session
+# (scope.session_pages, from the transcript) plus this run's worked pages. Image checks belong only
+# to these pages, so findings on pages the session never touched don't clutter the report.
+$scopePages = @(@(Arr $r.scope.session_pages) + @(Arr $r.scope.worked_pages) | ForEach-Object { PagePaths $_ } | Sort-Object -Unique)
+function InScope($page) {
+    $paths = @(PagePaths $page)
+    if ($paths.Count -eq 0) { return $true }
+    return @($paths | Where-Object { $scopePages -contains $_ }).Count -gt 0
+}
 
 # --- Issues this session's last run left open ---
 # The last run is the latest checkpoint for this session other than this run itself, so running the
@@ -92,6 +103,7 @@ if (Test-Path $CheckpointFile) {
 $forgotten = 0
 if ($sinceRun) {
     foreach ($o in (Arr $sinceRun.open_issues)) {
+        if ((IsImageCheck $o) -and -not (InScope $o.page)) { continue }
         if (@($earlierList | Where-Object { $_.name -eq $o.name -and (SamePage $_.page $o.page) }).Count -eq 0) {
             [void]$earlierList.Add([pscustomobject]@{ name = $o.name; page = $o.page; status = 'not_rechecked' })
             $forgotten++
@@ -103,6 +115,7 @@ if ($sinceRun) {
 # in the verdict and is carried into the next checkpoint instead of disappearing.
 foreach ($e in $earlierList) {
     if ($e.status -eq 'fixed') { continue }
+    if ((IsImageCheck $e) -and -not (InScope $e.page)) { $e | Add-Member -NotePropertyName status -NotePropertyValue 'fixed' -Force; continue }
     if (@($checks | Where-Object { $_.name -eq $e.name -and (SamePage $_.page $e.page) }).Count -gt 0) { continue }
     $prev = $null
     if ($sinceRun) { $prev = @(Arr $sinceRun.open_issues | Where-Object { $_.name -eq $e.name -and (SamePage $_.page $e.page) }) | Select-Object -First 1 }
@@ -129,11 +142,17 @@ if ($sinceRun) {
 }
 
 # --- Checks every page needs ---
-# Every page whose SEO, images or layout were checked needs "Image sizes" and "PNG images" checks, and
-# every worked page needs a "Console errors" check. A missing one is added as not verified, so a
+# Every page this session changed needs "Image sizes" and "PNG images" checks on every run, and every
+# page worked on since the last check needs a "Console errors" check. A missing one is added as not verified, so a
 # skipped check can't pass unnoticed.
-$pageAreas = 'seo', 'image', 'layout', 'page'
-$checkedPages = @($checks | Where-Object { $pageAreas -contains $_.area -and $_.page -and -not $_.added_by_report } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
+# Image checks on pages outside the scope are left out of the report, unless they're blamed on this
+# session or need review, and the report says how many were left out.
+$outOfScope = @($checks | Where-Object { (IsImageCheck $_) -and -not (InScope $_.page) -and @('this_session', 'needs_review') -notcontains $_.attribution })
+if ($outOfScope.Count -gt 0) {
+    $checks = @($checks | Where-Object { $outOfScope -notcontains $_ })
+    $r | Add-Member -NotePropertyName limits -NotePropertyValue (@(Arr $r.limits) + "Left out $($outOfScope.Count) image check(s) on pages this session didn't change.") -Force
+}
+$checkedPages = $scopePages
 $sizedPages = @($checks | Where-Object { IsSizeCheck $_ } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
 $pngPages = @($checks | Where-Object { IsPngCheck $_ } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
 foreach ($p in $checkedPages) {
