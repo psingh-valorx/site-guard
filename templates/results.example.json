@@ -98,10 +98,20 @@
       "name": "Image sizes",
       "page": "/demo",
       "status": "fail",
-      "severity": "warning",
+      "severity": "breaking",
       "attribution": "this_session",
       "evidence": "1 image is too large (hero limit 300 KB):\nhero-image.png: 640 KB",
       "fix": "Export hero-image.png as WebP under 300 KB."
+    },
+    {
+      "area": "image",
+      "name": "PNG images",
+      "page": "/demo",
+      "status": "fail",
+      "severity": "breaking",
+      "attribution": "this_session",
+      "evidence": "1 new PNG image:\nhero-image.png: 640 KB",
+      "fix": "Replace with WebP, or SVG for logos and icons."
     }
   ],
   "earlier_issues": [
