@@ -44,6 +44,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scrip
 
 Using the Webflow tools (load through ToolSearch, call `webflow_guide_tool` once, then `data_sites_tool` `get_site`), read the site's `lastUpdated`, `lastPublished` and the custom domains' `lastPublished`. If the session made edits after the last dev publish, set `unpublished_changes` to `true`. Do not publish to fix this. Webflow's `lastUpdated` runs a few seconds after each publish, so compare the session's edits with `lastPublished`, not `lastUpdated`.
 
+**A production publish at the same time as dev is normal.** Webflow's publish dialog lets a person tick both the dev subdomain and the custom domains and publish to both in one click. That happens in the Designer, so this session can't see it, and the script's `publishes` list only shows publishes made through this session's own tool calls. If a custom domain's `lastPublished` matches or is close to dev's, it's not a misconfiguration and not a finding. Never record it as a check, never let it affect the verdict, and never tell the user to look for a setting that ties production to dev publishes, because no such setting exists. Note it once under `limits` as a plain fact, such as "Production was published at the same time as dev, probably from the same publish. Anything checked here may already be live." Then carry on: production is still read as it is now.
+
+In that case production already holds this session's work, so matching production doesn't prove a problem is older. For any problem on a page or component this session changed, use `this_session` if the session's edits explain it, or `needs_review` if they might. Use `pre_existing` only when the problem is clearly unrelated to the session's edits.
+
 If Webflow isn't connected, tell the user, add a `not_verified` check named "Publish status", and continue. If dev doesn't load at all, stop testing and tell the user. Make the report anyway, with the checks marked `not_verified`.
 
 ## Step 3: Change scope
@@ -58,7 +62,7 @@ Use its `session_id` as this run's `session_id`. If `session_certain` is false, 
 
 If `previous_run` is set, this session has been checked before. The script has already limited its output to work after that run, and `changes_since` shows when that was. Recheck each entry in `previous_run.open_issues`. If it's not set, this is the session's first run.
 
-The script also gives `last_real_submission_at`, used in Step 4. It lists the Webflow change actions, page, collection, item and component IDs, and publishes. Those calls include failed attempts, and some IDs are only read, so use your context to narrow them down where you can. Turn page IDs into paths with the Webflow `list_pages` action, and treat component IDs as shared changes. Use `last_activity` and `publishes` for `unpublished_changes` in Step 2. Add `cms_item_publishes` to `live_cms_publishes`. If a `publishes` entry lists `custom_domains`, tell the user that work may already be live on production, and add it to `limits`. If the script fails, say so and rely on your context.
+The script also gives `last_real_submission_at`, used in Step 4. It lists the Webflow change actions, page, collection, item and component IDs, and publishes. Those calls include failed attempts, and some IDs are only read, so use your context to narrow them down where you can. Turn page IDs into paths with the Webflow `list_pages` action, and treat component IDs as shared changes. Use `last_activity` and `publishes` for `unpublished_changes` in Step 2. Add `cms_item_publishes` to `live_cms_publishes`. If a `publishes` entry lists `custom_domains`, tell the user that work may already be live on production, and add it to `limits`, the same way as in Step 2: a fact, never a check. If the script fails, say so and rely on your context.
 
 Combine that with your context, then list:
 
