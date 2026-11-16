@@ -45,11 +45,13 @@ schema:
   - { id: schema-deprecated, severity: info, rule: "HowTo, SpecialAnnouncement, CourseInfo, EstimatedSalary, LearningVideo, ClaimReview, VehicleListing." }
 
 images:
-  size_limits_kb:   # warning above the first number, also warning above the second, flagged as critical in the text
+  size_limits_kb:   # breaking above the first number; above the second it is also called critical in the text
     thumbnail: [100, 200]
     content: [200, 500]
     hero: [300, 700]
+  size_severity: breaking   # an image this work added or changed that is over its limit blocks publishing
   rules:
+    - { id: png-added, severity: breaking, rule: "A PNG image this work added or changed. Use WebP for photos and screenshots, SVG for logos and icons, and WebP with transparency where needed. PNGs already on the live site are pre_existing." }
     - { id: alt-missing, severity: warning, rule: "No alt attribute. An empty alt is fine for decorative images." }
     - { id: alt-poor, severity: info, rule: "Alt is a filename or generic, or outside 10-125 characters." }
     - { id: dimensions-missing, severity: warning, rule: "No width and height attributes, which risks layout shift." }
@@ -60,7 +62,7 @@ images:
       severity: info
       rule: >-
         Pages can hold 100 or more images, mostly shared logos, so count each unique image once.
-        Give the totals per format, then list only PNG, JPEG and GIF images with their file
+        Give the totals per format, then list only JPEG and GIF images (PNGs have their own rule above) with their file
         name, size and recommended format, largest first, up to 40. If more remain, say how
         many. Use WebP for photos and screenshots. Use WebP or PNG where transparency is
         needed, and say that transparency could not be detected if it is unclear. Use SVG for

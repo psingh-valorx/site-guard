@@ -53,9 +53,20 @@ function PagePaths($s) {
 $pageAreas = 'seo', 'image', 'layout', 'page'
 $checkedPages = @($checks | Where-Object { $pageAreas -contains $_.area -and $_.page } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
 $sizedPages = @($checks | Where-Object { $_.name -match '(?i)image size' } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
+$pngPages = @($checks | Where-Object { $_.name -match '(?i)\bpng\b' } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
 foreach ($p in $checkedPages) {
     if ($sizedPages -notcontains $p) {
-        $checks += [pscustomobject]@{ area = 'image'; name = 'Image sizes'; page = $p; status = 'not_verified'; severity = 'warning'; evidence = 'Added by the report: no image size check was recorded for this page.' }
+        $checks += [pscustomobject]@{ area = 'image'; name = 'Image sizes'; page = $p; status = 'not_verified'; severity = 'breaking'; evidence = 'Added by the report: no image size check was recorded for this page.' }
+    }
+    if ($pngPages -notcontains $p) {
+        $checks += [pscustomobject]@{ area = 'image'; name = 'PNG images'; page = $p; status = 'not_verified'; severity = 'breaking'; evidence = 'Added by the report: no PNG check was recorded for this page.' }
+    }
+}
+# Oversized and PNG images block publishing. Whether they count against this work still depends on
+# attribution: images already on the live site are reported but don't block.
+foreach ($c in $checks) {
+    if ($c.status -eq 'fail' -and $c.name -match '(?i)image size|\bpng\b') {
+        $c | Add-Member -NotePropertyName severity -NotePropertyValue 'breaking' -Force
     }
 }
 # Every worked page must also be opened in Chrome and its console read. A page skipped there,

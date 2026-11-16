@@ -191,7 +191,20 @@ Also on the live site already: cmc-logo.svg, 1,087 KB
 
 Put the limit for each category in the first line, as "(hero limit 300 KB)" and so on, and add "critical" after a size above the second number. Leave out the last line if nothing is already on the live site. If every image is within its limit, the evidence is just "All 56 images are within the size limits." Put the fix as one short line, such as "Compress these 3 images to under 200 KB." For images listed in `image_sizes_unknown`, try `performance.getEntriesByType('resource')` in Chrome. Any image still without a size makes that check `not_verified`, never `pass`. Background images set in CSS aren't in `image_sizes`: say so in the evidence.
 
-Group repeated findings into one row with a count and the names of the items affected, up to 10, rather than one row per image. The image `format` rule sets its own list format.
+**Oversized and PNG images block publishing.** An image is "new" if its file name isn't in the production copy's `image_sizes` for that page, or its size there is different. Compare the dev and production outputs from `read-pages.ps1`. If any new image is over its limit, the "Image sizes" check is `fail`, severity `breaking`, attribution `this_session`. If only images already on the live site are over, it's `fail` with attribution `pre_existing`, so it's reported but doesn't block.
+
+Record one check per page named "PNG images" too, laid out the same way:
+
+```
+2 new PNG images:
+nightcap.png: 333 KB
+team-photo.png: 140 KB
+Also on the live site already: 500px-Hallmark_logo.svg.png
+```
+
+If any new image is a PNG, it's `fail`, severity `breaking`, attribution `this_session`, with the fix "Replace with WebP, or SVG for logos and icons." If the only PNGs are already on the live site, it's `fail` with attribution `pre_existing`. With no PNGs, it's `pass` with "No PNG images." The report treats every failed "Image sizes" or "PNG images" check as breaking, so the severity can't be lowered.
+
+Group repeated findings into one row with a count and the names of the items affected, up to 10, rather than one row per image. The image `format` rule sets its own list format. The "Image sizes" and "PNG images" checks list every image, not just 10.
 
 ## Step 7: Classify
 
