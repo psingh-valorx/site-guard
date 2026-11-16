@@ -85,7 +85,10 @@ $toReview = @($seen.Keys | Where-Object { ($_ -split '[?#]')[0] -match '(?i)\.(p
 
 # File size of each unique image, read from the response headers, so size checks never depend on a browser.
 # This is the uploaded original. Browsers may load a smaller srcset copy, but the original is what to fix.
+# Returns the size in bytes, or the HTTP error code (as a negative number) when the image can't be
+# loaded at all, or $null when it loads but gives no size.
 function ImageBytes($u) {
+    $errorCode = 0
     foreach ($method in 'HEAD', 'GET') {
         $res = $null
         try {
@@ -99,19 +102,30 @@ function ImageBytes($u) {
             if ($range -match '/(\d+)\s*$') { return [long]$Matches[1] }
             if ($method -eq 'HEAD' -and $res.ContentLength -gt 0) { return [long]$res.ContentLength }
         }
+        catch [System.Net.WebException] {
+            if ($_.Exception.Response) { $errorCode = [int]$_.Exception.Response.StatusCode; $_.Exception.Response.Close() }
+        }
         catch {}
         finally { if ($res) { $res.Close() } }
     }
+    if ($errorCode -ge 400) { return -$errorCode }
     return $null
 }
 $imageSizes = @()
 $sizesUnknown = @()
-foreach ($src in @($seen.Keys | Select-Object -First 150)) {
+$brokenImages = @()
+$measured = 0
+foreach ($src in @($seen.Keys)) {
     $abs = $null
     if (-not [uri]::TryCreate($uri, $src, [ref]$abs) -or $abs.Scheme -notmatch '^https?$') { continue }
     $name = [uri]::UnescapeDataString($abs.AbsolutePath.Split('/')[-1])
+    # Measure up to 400 images. Any beyond that are listed as unknown, so the size check can't pass
+    # without them.
+    if (++$measured -gt 400) { $sizesUnknown += $name; continue }
     $bytes = ImageBytes $abs.AbsoluteUri
     if ($null -eq $bytes) { $sizesUnknown += $name; continue }
+    # An image the server refuses or can't find is broken for visitors, not merely unmeasured.
+    if ($bytes -lt 0) { $brokenImages += [pscustomobject]@{ file = $name; status = -$bytes; url = $abs.AbsoluteUri }; continue }
     $imageSizes += [pscustomobject]@{
         file   = $name
         format = [IO.Path]::GetExtension($abs.AbsolutePath).TrimStart('.').ToLower()
@@ -168,6 +182,7 @@ Done ([pscustomobject]@{
     images_to_review = $toReview
     image_sizes      = $imageSizes
     image_sizes_unknown = $sizesUnknown
+    broken_images    = $brokenImages
     missing_alt      = $missingAlt
     missing_dimensions = $missingDims
     lazy_loaded      = $lazy

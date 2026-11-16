@@ -32,10 +32,17 @@ $r | Add-Member -NotePropertyName finished_at -NotePropertyValue ((Get-Date).ToU
 
 $validStatus = 'pass', 'fail', 'not_verified', 'not_submitted', 'skipped'
 $validSeverity = 'breaking', 'warning', 'info'
+$validAttribution = 'this_session', 'intended', 'outside_session', 'pre_existing', 'needs_review'
 $checks = @(Arr $r.checks)
 foreach ($c in $checks) {
     if ($validStatus -notcontains $c.status) { throw "Check '$($c.name)' has unknown status '$($c.status)'." }
     if ($c.status -eq 'fail' -and $validSeverity -notcontains $c.severity) { throw "Failed check '$($c.name)' needs a severity." }
+    # Accept "pre-existing" or "Pre existing", but nothing that isn't a known attribution.
+    if ($c.attribution) {
+        $a = ([string]$c.attribution).Trim().ToLower() -replace '[\s-]+', '_'
+        if ($validAttribution -notcontains $a) { throw "Check '$($c.name)' has unknown attribution '$($c.attribution)'." }
+        $c.attribution = $a
+    }
     # A pass with no evidence is not a pass.
     if ($c.status -eq 'pass' -and [string]::IsNullOrWhiteSpace([string]$c.evidence)) {
         $c.status = 'not_verified'
@@ -43,17 +50,92 @@ foreach ($c in $checks) {
     }
 }
 
-# Every page that had its SEO, image or layout checked needs an image size check. If it's missing,
-# add it as not verified, so a skipped size check can't pass unnoticed.
-# A check's page can name several pages ("/events, /about") or a group ("/events and its detail pages"),
-# so compare the paths inside it. Files such as /sitemap.xml aren't pages and need no image check.
+# A check's page can name several pages ("/events, /about"), a group ("/events and its detail pages")
+# or a full URL, so compare the paths inside it. Files such as /sitemap.xml aren't pages. A bare "/" is
+# the homepage only when it stands alone, not inside text like "desktop / phone".
 function PagePaths($s) {
-    return @([regex]::Matches([string]$s, '(?<![\w.])/[\w\-./]*') | ForEach-Object { $_.Value.TrimEnd('.', '/') } | ForEach-Object { if ($_ -eq '') { '/' } else { $_ } } | Where-Object { $_ -notmatch '\.[a-z0-9]{2,4}$' })
+    $s = [regex]::Replace([string]$s, '(?i)https?://[^/\s,]+', '')
+    $out = @()
+    foreach ($m in [regex]::Matches($s, '(?<![\w.])/[\w\-./]*')) {
+        $v = $m.Value.TrimEnd('.', '/')
+        if ($v -eq '') {
+            $before = $s.Substring(0, $m.Index).TrimEnd()
+            $after = $s.Substring($m.Index + $m.Length).TrimStart()
+            if (($before -eq '' -or $before.EndsWith(',')) -and ($after -eq '' -or $after.StartsWith(','))) { $out += '/' }
+            continue
+        }
+        if ($v -notmatch '\.[a-z0-9]{2,4}$') { $out += $v }
+    }
+    return $out
 }
+function SamePage($a, $b) { return ([string]$a).Trim() -eq ([string]$b).Trim() }
+# The per-page checks the report enforces are matched by their exact names, so a finding that merely
+# mentions "png" or "console" is never mistaken for one.
+function IsSizeCheck($c) { return ([string]$c.name).Trim() -match '^(?i)image sizes?$' }
+function IsPngCheck($c) { return ([string]$c.name).Trim() -match '^(?i)png images?$' }
+function IsConsoleCheck($c) { return ([string]$c.name).Trim() -match '^(?i)console errors?$' }
+
+# --- Issues this session's last run left open ---
+# The last run is the latest checkpoint for this session other than this run itself, so running the
+# report twice for the same run never makes the run its own "last check".
+$earlierList = New-Object System.Collections.ArrayList
+foreach ($x in (Arr $r.earlier_issues)) {
+    if (@('fixed', 'still_broken', 'not_rechecked') -notcontains $x.status) { $x | Add-Member -NotePropertyName status -NotePropertyValue 'not_rechecked' -Force }
+    [void]$earlierList.Add($x)
+}
+$sinceRun = $null
+if (Test-Path $CheckpointFile) {
+    foreach ($run in (Get-Content $CheckpointFile -Raw -Encoding UTF8 | ConvertFrom-Json)) {
+        if ($r.session_id -and $run.session_id -eq $r.session_id -and $run.run_id -ne $r.run_id) { $sinceRun = $run }
+    }
+}
+$forgotten = 0
+if ($sinceRun) {
+    foreach ($o in (Arr $sinceRun.open_issues)) {
+        if (@($earlierList | Where-Object { $_.name -eq $o.name -and (SamePage $_.page $o.page) }).Count -eq 0) {
+            [void]$earlierList.Add([pscustomobject]@{ name = $o.name; page = $o.page; status = 'not_rechecked' })
+            $forgotten++
+        }
+    }
+    if ($r.scope -and -not $r.scope.since_checkpoint) { $r.scope | Add-Member -NotePropertyName since_checkpoint -NotePropertyValue $sinceRun.finished_at -Force }
+}
+# An earlier issue that's still broken or wasn't rechecked must stay in this run's checks, so it counts
+# in the verdict and is carried into the next checkpoint instead of disappearing.
+foreach ($e in $earlierList) {
+    if ($e.status -eq 'fixed') { continue }
+    if (@($checks | Where-Object { $_.name -eq $e.name -and (SamePage $_.page $e.page) }).Count -gt 0) { continue }
+    $prev = $null
+    if ($sinceRun) { $prev = @(Arr $sinceRun.open_issues | Where-Object { $_.name -eq $e.name -and (SamePage $_.page $e.page) }) | Select-Object -First 1 }
+    $sev = if ($prev -and $validSeverity -contains $prev.severity) { $prev.severity } else { 'warning' }
+    if ($e.status -eq 'still_broken') {
+        $checks += [pscustomobject]@{ area = 'page'; name = $e.name; page = $e.page; status = 'fail'; severity = $sev; attribution = 'this_session'; added_by_report = $true; evidence = 'Added by the report: still broken since the last check.' }
+    }
+    else {
+        $checks += [pscustomobject]@{ area = 'page'; name = $e.name; page = $e.page; status = 'not_verified'; severity = $sev; added_by_report = $true; evidence = 'Added by the report: left open by the last check and not rechecked in this run.' }
+    }
+}
+$notRechecked = @($earlierList | Where-Object { $_.status -eq 'not_rechecked' }).Count
+
+# A failure the last run left open belongs to this session. If it's still failing, it stays this
+# session's even when a later publish has put it on the live site. This applies only to real failures,
+# not to checks that were merely unverified last time.
+if ($sinceRun) {
+    foreach ($c in $checks) {
+        if ($c.status -ne 'fail' -or ($c.attribution -ne 'pre_existing' -and $c.attribution -ne 'intended')) { continue }
+        if (@(Arr $sinceRun.open_issues | Where-Object { $_.status -eq 'fail' -and $_.name -eq $c.name -and (SamePage $_.page $c.page) }).Count -eq 0) { continue }
+        $c | Add-Member -NotePropertyName attribution -NotePropertyValue 'this_session' -Force
+        $c | Add-Member -NotePropertyName evidence -NotePropertyValue ("$($c.evidence)`nCounted by the report: this was left open by this session's last check. It's on the live site only because of a later publish.").Trim() -Force
+    }
+}
+
+# --- Checks every page needs ---
+# Every page whose SEO, images or layout were checked needs "Image sizes" and "PNG images" checks, and
+# every worked page needs a "Console errors" check. A missing one is added as not verified, so a
+# skipped check can't pass unnoticed.
 $pageAreas = 'seo', 'image', 'layout', 'page'
-$checkedPages = @($checks | Where-Object { $pageAreas -contains $_.area -and $_.page } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
-$sizedPages = @($checks | Where-Object { $_.name -match '(?i)image size' } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
-$pngPages = @($checks | Where-Object { $_.name -match '(?i)\bpng\b' } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
+$checkedPages = @($checks | Where-Object { $pageAreas -contains $_.area -and $_.page -and -not $_.added_by_report } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
+$sizedPages = @($checks | Where-Object { IsSizeCheck $_ } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
+$pngPages = @($checks | Where-Object { IsPngCheck $_ } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
 foreach ($p in $checkedPages) {
     if ($sizedPages -notcontains $p) {
         $checks += [pscustomobject]@{ area = 'image'; name = 'Image sizes'; page = $p; status = 'not_verified'; severity = 'breaking'; evidence = 'Added by the report: no image size check was recorded for this page.' }
@@ -62,66 +144,38 @@ foreach ($p in $checkedPages) {
         $checks += [pscustomobject]@{ area = 'image'; name = 'PNG images'; page = $p; status = 'not_verified'; severity = 'breaking'; evidence = 'Added by the report: no PNG check was recorded for this page.' }
     }
 }
-# Oversized and PNG images block publishing. Whether they count against this work still depends on
-# attribution: images already on the live site are reported but don't block.
-foreach ($c in $checks) {
-    if ($c.status -eq 'fail' -and $c.name -match '(?i)image size|\bpng\b') {
-        $c | Add-Member -NotePropertyName severity -NotePropertyValue 'breaking' -Force
-    }
-}
-# Every worked page must also be opened in Chrome and its console read. A page skipped there,
-# even if noted under limits, is added as not verified, so the run can't read as a full pass.
-$consolePages = @($checks | Where-Object { $_.name -match '(?i)console' } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
+$consolePages = @($checks | Where-Object { IsConsoleCheck $_ } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
 foreach ($p in @(Arr $r.scope.worked_pages | ForEach-Object { PagePaths $_ } | Sort-Object -Unique)) {
     if ($consolePages -notcontains $p) {
         $checks += [pscustomobject]@{ area = 'page'; name = 'Console errors'; page = $p; status = 'not_verified'; severity = 'warning'; evidence = 'Added by the report: this worked page was not opened in Chrome with its console read.' }
     }
 }
-$r | Add-Member -NotePropertyName checks -NotePropertyValue $checks -Force
-
-# Issues left open by this session's last run must be accounted for, so none can be forgotten.
-$earlierList = New-Object System.Collections.ArrayList
-foreach ($x in (Arr $r.earlier_issues)) { [void]$earlierList.Add($x) }
-$sinceRun = $null
-if (Test-Path $CheckpointFile) {
-    foreach ($run in (Get-Content $CheckpointFile -Raw -Encoding UTF8 | ConvertFrom-Json)) { if ($r.session_id -and $run.session_id -eq $r.session_id) { $sinceRun = $run } }
-}
-$forgotten = 0
-if ($sinceRun) {
-    foreach ($o in (Arr $sinceRun.open_issues)) {
-        if (@($earlierList | Where-Object { $_.name -eq $o.name -and $_.page -eq $o.page }).Count -eq 0) {
-            [void]$earlierList.Add([pscustomobject]@{ name = $o.name; page = $o.page; status = 'not_rechecked' })
-            $forgotten++
-        }
-    }
-    if ($r.scope -and -not $r.scope.since_checkpoint) { $r.scope | Add-Member -NotePropertyName since_checkpoint -NotePropertyValue $sinceRun.finished_at -Force }
-}
-$notRechecked = @($earlierList | Where-Object { $_.status -eq 'not_rechecked' }).Count
-
-# An issue this session's last run left open belongs to this session. If it's still failing, it stays
-# this session's even when a later publish has put it on the live site, so it can't drop out as
-# "already on production".
-if ($sinceRun) {
-    foreach ($c in $checks) {
-        if ($c.status -ne 'fail' -or ($c.attribution -ne 'pre_existing' -and $c.attribution -ne 'intended')) { continue }
-        if (@(Arr $sinceRun.open_issues | Where-Object { $_.name -eq $c.name -and $_.page -eq $c.page }).Count -eq 0) { continue }
-        $c | Add-Member -NotePropertyName attribution -NotePropertyValue 'this_session' -Force
-        $c | Add-Member -NotePropertyName evidence -NotePropertyValue ("$($c.evidence)`nCounted by the report: this was left open by this session's last check. It's on the live site only because of a later publish.").Trim() -Force
+# Oversized and PNG images block publishing. Whether they count against this work still depends on
+# attribution: images already on the live site are reported but don't block.
+foreach ($c in $checks) {
+    if ($c.status -eq 'fail' -and ((IsSizeCheck $c) -or (IsPngCheck $c))) {
+        $c | Add-Member -NotePropertyName severity -NotePropertyValue 'breaking' -Force
     }
 }
 
-# --- Verdict ---
+# --- Forms ---
 # A form that didn't load on a page fails every check on that form there. Otherwise a check that
-# only compares form IDs could pass while visitors see no form.
+# only compares form IDs could pass while visitors see no form. The other checks take the dead form's
+# attribution: if it was already broken on production, so are they.
 $deadForms = @{}
 foreach ($c in $checks) {
-    if ($c.form_id -and $c.form_renders -eq $false) { $deadForms["$($c.form_id)|$($c.page)"] = $true }
+    if ($c.form_id -and $c.form_renders -eq $false) {
+        $att = if ($c.attribution) { $c.attribution } else { 'this_session' }
+        $deadForms["$($c.form_id)|$($c.page)"] = $att
+    }
 }
 foreach ($c in $checks) {
     if (-not $c.form_id -or -not $deadForms.ContainsKey("$($c.form_id)|$($c.page)")) { continue }
+    $deadAtt = $deadForms["$($c.form_id)|$($c.page)"]
     if ($c.form_renders -eq $false) {
         $c.status = 'fail'
         $c | Add-Member -NotePropertyName severity -NotePropertyValue 'breaking' -Force
+        $c | Add-Member -NotePropertyName attribution -NotePropertyValue $deadAtt -Force
         continue
     }
     if ($c.status -eq 'pass' -or $c.status -eq 'not_submitted') {
@@ -129,10 +183,14 @@ foreach ($c in $checks) {
         $c | Add-Member -NotePropertyName severity -NotePropertyValue 'breaking' -Force
         $c | Add-Member -NotePropertyName evidence -NotePropertyValue ("$($c.evidence) Failed by the report: form $($c.form_id) did not load on this page.").Trim() -Force
     }
-    if ($c.attribution -eq 'pre_existing' -or $c.attribution -eq 'intended' -or -not $c.attribution) {
+    if ($deadAtt -eq 'pre_existing') { $c | Add-Member -NotePropertyName attribution -NotePropertyValue 'pre_existing' -Force }
+    elseif ($c.attribution -eq 'pre_existing' -or $c.attribution -eq 'intended' -or -not $c.attribution) {
         $c | Add-Member -NotePropertyName attribution -NotePropertyValue 'this_session' -Force
     }
 }
+$r | Add-Member -NotePropertyName checks -NotePropertyValue $checks -Force
+
+# --- Verdict ---
 
 # Intended changes and problems production already has do not count against this work.
 $notCounted = 'intended', 'pre_existing'
@@ -333,7 +391,8 @@ if (-not $NoCheckpoint) {
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
     $runs = @()
     # PowerShell 5.1 passes a JSON array down the pipeline as one object, so unroll it.
-    if (Test-Path $CheckpointFile) { foreach ($saved in (Get-Content $CheckpointFile -Raw -Encoding UTF8 | ConvertFrom-Json)) { $runs += $saved } }
+    # A rerun of the report for the same run replaces its earlier entry instead of adding another.
+    if (Test-Path $CheckpointFile) { foreach ($saved in (Get-Content $CheckpointFile -Raw -Encoding UTF8 | ConvertFrom-Json)) { if (-not ($saved.run_id -eq $r.run_id -and $saved.session_id -eq $r.session_id)) { $runs += $saved } } }
     $open = @(($breaking + $warnings + $unverified) | ForEach-Object { [pscustomobject]@{ name = $_.name; page = $_.page; status = $_.status; severity = $_.severity } })
     $runs += [pscustomobject]@{
         run_id         = $r.run_id

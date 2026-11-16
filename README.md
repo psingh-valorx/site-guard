@@ -82,6 +82,7 @@ Real submissions have real effects, such as confirmation emails, alerts and CRM 
 
 - **Forms, flows and known differences:** your local `site-guard.yml`. A form that isn't listed is never submitted.
 - **SEO and image rules:** `config/seo-rules.yml`.
+- **After changing the report script,** run `powershell -ExecutionPolicy Bypass -File tests\run-tests.ps1`. It checks the verdict rules against 43 cases and prints how many passed.
 
 ## Known limits
 

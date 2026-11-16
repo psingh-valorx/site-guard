@@ -1,7 +1,7 @@
 # SEO and image rules. Adapted from claude-seo (MIT), see THIRD_PARTY_NOTICES.md.
 # Thresholds change with Google policy: review this file against the upstream changelog occasionally.
 #
-# severity: breaking fails the check, warning and info never do.
+# severity: a failed breaking check blocks publishing; a failed warning or info check is reported but does not.
 # Before reporting a change, decide from the session whether it was intended.
 # An intended change is reported as intended, whatever its severity here.
 #
@@ -49,6 +49,7 @@ images:
     thumbnail: [100, 200]
     content: [200, 500]
     hero: [300, 700]
+    svg: [100, 100]   # any SVG, whatever its category
   size_severity: breaking   # an image this work added or changed that is over its limit blocks publishing
   rules:
     - { id: png-added, severity: breaking, rule: "A PNG image this work added or changed. Use WebP for photos and screenshots, SVG for logos and icons, and WebP with transparency where needed. PNGs already on the live site are pre_existing." }

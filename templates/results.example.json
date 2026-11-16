@@ -26,6 +26,16 @@
   "checks": [
     {
       "area": "form",
+      "name": "Form 1000 loads",
+      "form_id": "1000",
+      "form_renders": true,
+      "page": "/demo",
+      "status": "pass",
+      "severity": "info",
+      "evidence": "The form showed all 7 fields within 3 seconds."
+    },
+    {
+      "area": "form",
       "name": "Form 1000 real submission",
       "form_id": "1000",
       "page": "/demo",
@@ -49,6 +59,7 @@
     {
       "area": "form",
       "name": "Form 1004 compared with production",
+      "form_id": "1004",
       "page": "/demo-two",
       "status": "pass",
       "severity": "info",
@@ -58,6 +69,7 @@
     {
       "area": "form",
       "name": "Form 1001 footer",
+      "form_id": "1001",
       "page": "/demo",
       "status": "not_submitted",
       "severity": "info",
@@ -90,8 +102,8 @@
       "status": "fail",
       "severity": "info",
       "attribution": "this_session",
-      "evidence": "62 SVG, 45 AVIF, 13 PNG, 10 WebP. hero-image.png, PNG, 640 KB.",
-      "fix": "Use WebP for hero-image.png."
+      "evidence": "62 SVG, 45 AVIF, 13 PNG, 10 WebP. 1 JPEG to convert:\nteam-photo.jpg: 180 KB",
+      "fix": "Use WebP for team-photo.jpg."
     },
     {
       "area": "image",
