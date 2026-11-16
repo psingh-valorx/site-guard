@@ -169,6 +169,12 @@ Use `javascript_tool` on dev for anything that needs a browser, such as broken i
 
 **Open every worked page in Chrome and read its console.** Record one check per worked page named "Console errors", with the page's exact path. Use `pass` with "No errors" as the evidence, or list each error. Never group pages in this check, and never carry it over from an earlier run: read the console again. A page you didn't open is `not_verified`. Never move a check that didn't run into `limits` instead of recording it, because the report adds any missing console check as `not_verified`.
 
+**Check the layout of every worked page.** Record one check per worked page named "Layout", covering every width in `viewports` and the `layout` rules. List each width on its own line with what you found, such as "375 px: no sideways scroll, H1 clear of the nav". It's `fail` if any width breaks a rule, and `not_verified` for any width you couldn't measure.
+
+**Compare every worked page with the live site.** Record one check per worked page named "Compared with live site", from the `read-pages.ps1` output for both copies, covering the `compare_with_production` rules: title, meta description, H1, canonical, robots, Open Graph tags and schema. List each difference on its own line with the dev and live values, and say whether the session changed it on purpose. Use `pass` with "Title, description, H1, canonical, robots, social tags and schema all match the live site." when nothing differs. For a page that returns 404 on the live site, use `pass` with "New page, not on the live site yet." A difference that breaks a rule goes in its own check too, with the rule's severity.
+
+These per-page checks ("Console errors", "Layout", "Compared with live site") cover only pages worked on since the last check. Pages that passed earlier and haven't changed since aren't checked again. The report adds any missing one as `not_verified`.
+
 Check layout at each width in `viewports`. Browser window resizing often doesn't change the page width, so confirm `window.innerWidth` after resizing. If it didn't change, use `javascript_tool` on the dev page to add a hidden-from-view iframe of the same dev URL at that width, read `scrollWidth`, `clientWidth` and the H1's position inside it, then remove it. Links and forms inside it are never clicked.
 
 If the page returns 404 on production, it's a new page. Skip the comparison rules and apply the rest. A page the session deleted on purpose is `intended`.

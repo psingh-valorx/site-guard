@@ -17,7 +17,7 @@ function Chk($area, $name, $page, $status, $sev = 'info', $att = $null, $ev = 'E
     [pscustomobject]$o
 }
 # Every row a worked page needs to be fully verified.
-function Full($page) { @((Chk 'image' 'Image sizes' $page 'pass'), (Chk 'image' 'PNG images' $page 'pass'), (Chk 'page' 'Console errors' $page 'pass')) }
+function Full($page) { @((Chk 'image' 'Image sizes' $page 'pass'), (Chk 'image' 'PNG images' $page 'pass'), (Chk 'page' 'Console errors' $page 'pass'), (Chk 'layout' 'Layout' $page 'pass'), (Chk 'seo' 'Compared with live site' $page 'pass')) }
 function Results($id, $checks, $worked = @(), $extra = @{}) {
     $r = [ordered]@{
         run_id = $id; session_id = "sess-$id"; site_name = 'Test'; dev_host = 'dev.example'
@@ -62,8 +62,8 @@ $c = (Full '/a') + @([pscustomobject]@{ area = 'form'; name = 'Form 6 loads'; pa
 $o = Render (Results 't12' $c @('/a')); Ok 'dead form already broken on production -> PASS' ($o.verdict -eq 'PASS') "$($o.verdict)"
 
 Write-Host "`n== Required per-page rows =="
-$o = Render (Results 't13' @((Chk 'seo' 'Title' '/a' 'pass'), (Chk 'image' 'PNG images' '/a' 'pass'), (Chk 'page' 'Console errors' '/a' 'pass')) @('/a')); Ok 'missing image size row -> INCOMPLETE' ($o.verdict -eq 'INCOMPLETE') "$($o.verdict)"
-$o = Render (Results 't14' @((Chk 'image' 'Image sizes' '/a' 'pass'), (Chk 'page' 'Console errors' '/a' 'pass')) @('/a')); Ok 'missing PNG row -> INCOMPLETE' ($o.verdict -eq 'INCOMPLETE') "$($o.verdict)"
+$o = Render (Results 't13' @((Chk 'seo' 'Title' '/a' 'pass'), (Chk 'image' 'PNG images' '/a' 'pass'), (Chk 'page' 'Console errors' '/a' 'pass'), (Chk 'layout' 'Layout' '/a' 'pass'), (Chk 'seo' 'Compared with live site' '/a' 'pass')) @('/a')); Ok 'missing image size row -> INCOMPLETE' ($o.verdict -eq 'INCOMPLETE') "$($o.verdict)"
+$o = Render (Results 't14' @((Chk 'image' 'Image sizes' '/a' 'pass'), (Chk 'page' 'Console errors' '/a' 'pass'), (Chk 'layout' 'Layout' '/a' 'pass'), (Chk 'seo' 'Compared with live site' '/a' 'pass')) @('/a')); Ok 'missing PNG row -> INCOMPLETE' ($o.verdict -eq 'INCOMPLETE') "$($o.verdict)"
 $o = Render (Results 't15' @((Chk 'image' 'Image sizes' '/a' 'pass'), (Chk 'image' 'PNG images' '/a' 'pass')) @('/a')); Ok 'missing console row on worked page -> INCOMPLETE' ($o.verdict -eq 'INCOMPLETE') "$($o.verdict)"
 $c = @((Chk 'seo' 'Links' '/events and its 2 detail pages' 'pass'), (Chk 'seo' 'Sitemap' '/sitemap.xml' 'pass')) + (Full '/events') + (Full '/events/x') + (Full '/events/y')
 $o = Render (Results 't16' $c @('/events', '/events/x', '/events/y')); Ok 'grouped page label and sitemap need no extra rows' ($o.verdict -eq 'PASS') "$($o.verdict) $($o.why)"
@@ -73,13 +73,13 @@ $c = (Full '/a') + @((Chk 'layout' 'Home layout' '/' 'pass'))
 $o = Render (Results 't18' $c @('/a')); Ok 'a layout check on a page the session didn''t change needs no image rows' ($o.verdict -eq 'PASS') "$($o.verdict)"
 
 Write-Host "`n== Images block =="
-$c = @((Chk 'image' 'Image sizes' '/a' 'fail' 'warning' 'this_session'), (Chk 'image' 'PNG images' '/a' 'pass'), (Chk 'page' 'Console errors' '/a' 'pass'))
+$c = @((Chk 'image' 'Image sizes' '/a' 'fail' 'warning' 'this_session'), (Chk 'image' 'PNG images' '/a' 'pass'), (Chk 'page' 'Console errors' '/a' 'pass'), (Chk 'layout' 'Layout' '/a' 'pass'), (Chk 'seo' 'Compared with live site' '/a' 'pass'))
 $o = Render (Results 't19' $c @('/a')); Ok 'new oversized image sent as warning -> BREAKING' ($o.verdict -eq 'BREAKING') "$($o.verdict)"
-$c = @((Chk 'image' 'Image sizes' '/a' 'pass'), (Chk 'image' 'PNG images' '/a' 'fail' 'info' 'this_session'), (Chk 'page' 'Console errors' '/a' 'pass'))
+$c = @((Chk 'image' 'Image sizes' '/a' 'pass'), (Chk 'image' 'PNG images' '/a' 'fail' 'info' 'this_session'), (Chk 'page' 'Console errors' '/a' 'pass'), (Chk 'layout' 'Layout' '/a' 'pass'), (Chk 'seo' 'Compared with live site' '/a' 'pass'))
 $o = Render (Results 't20' $c @('/a')); Ok 'new PNG sent as info -> BREAKING' ($o.verdict -eq 'BREAKING') "$($o.verdict)"
-$c = @((Chk 'image' 'Image sizes' '/a' 'fail' 'warning' 'pre_existing'), (Chk 'image' 'PNG images' '/a' 'fail' 'warning' 'pre_existing'), (Chk 'page' 'Console errors' '/a' 'pass'))
+$c = @((Chk 'image' 'Image sizes' '/a' 'fail' 'warning' 'pre_existing'), (Chk 'image' 'PNG images' '/a' 'fail' 'warning' 'pre_existing'), (Chk 'page' 'Console errors' '/a' 'pass'), (Chk 'layout' 'Layout' '/a' 'pass'), (Chk 'seo' 'Compared with live site' '/a' 'pass'))
 $o = Render (Results 't21' $c @('/a')); Ok 'only live-site images over -> PASS' ($o.verdict -eq 'PASS') "$($o.verdict)"
-$c = @((Chk 'image' 'Image sizes' '/a' 'fail' 'warning'), (Chk 'image' 'PNG images' '/a' 'pass'), (Chk 'page' 'Console errors' '/a' 'pass'))
+$c = @((Chk 'image' 'Image sizes' '/a' 'fail' 'warning'), (Chk 'image' 'PNG images' '/a' 'pass'), (Chk 'page' 'Console errors' '/a' 'pass'), (Chk 'layout' 'Layout' '/a' 'pass'), (Chk 'seo' 'Compared with live site' '/a' 'pass'))
 $o = Render (Results 't22' $c @('/a')); Ok 'failed image row with no attribution counts' ($o.verdict -eq 'BREAKING') "$($o.verdict)"
 
 Write-Host "`n== Checkpoints and earlier issues =="
@@ -122,7 +122,7 @@ Ok 'rerun replaces its checkpoint entry' ($runs.Count -eq 2) "runs=$($runs.Count
 # 2. A check that was only unverified last time keeps its pre_existing label.
 $cp = Join-Path $work 'cp-nv.json'
 WriteCp $cp @([pscustomobject]@{ session_id = 'sess-t41'; run_id = 'old'; finished_at = '2026-11-01T00:00:00Z'; open_issues = @([pscustomobject]@{ name = 'Image sizes'; page = '/a'; status = 'not_verified'; severity = 'breaking' }) })
-$c = @((Chk 'image' 'Image sizes' '/a' 'fail' 'warning' 'pre_existing'), (Chk 'image' 'PNG images' '/a' 'pass'), (Chk 'page' 'Console errors' '/a' 'pass'))
+$c = @((Chk 'image' 'Image sizes' '/a' 'fail' 'warning' 'pre_existing'), (Chk 'image' 'PNG images' '/a' 'pass'), (Chk 'page' 'Console errors' '/a' 'pass'), (Chk 'layout' 'Layout' '/a' 'pass'), (Chk 'seo' 'Compared with live site' '/a' 'pass'))
 $o = Render (Results 't41' $c @('/a') @{ earlier_issues = @([pscustomobject]@{ name = 'Image sizes'; page = '/a'; status = 'fixed' }) }) $cp
 Ok 'unverified-last-time check stays pre_existing' ($o.verdict -eq 'PASS') "$($o.verdict) $($o.why)"
 # 3. still_broken / not_rechecked earlier issues missing from checks are added and carried forward.
@@ -136,7 +136,7 @@ Ok '... both carried into the next checkpoint' (@($last.open_issues).Count -eq 2
 # 5. Name matching is exact.
 $c = (Full '/a') + @((Chk 'image' 'Missing alt: team.png' '/a' 'fail' 'warning' 'this_session'), (Chk 'image' 'Image size attributes missing' '/a' 'fail' 'warning' 'this_session'))
 $o = Render (Results 't43' $c @('/a')); Ok 'a finding that mentions png or image size stays a warning' ($o.verdict -eq 'PASS' -and $o.warnings -eq 2) "$($o.verdict) w=$($o.warnings)"
-$c = @((Chk 'image' 'Image sizes' '/a' 'pass'), (Chk 'image' 'Missing alt: team.png' '/a' 'pass'), (Chk 'page' 'Console errors' '/a' 'pass'))
+$c = @((Chk 'image' 'Image sizes' '/a' 'pass'), (Chk 'image' 'Missing alt: team.png' '/a' 'pass'), (Chk 'page' 'Console errors' '/a' 'pass'), (Chk 'layout' 'Layout' '/a' 'pass'), (Chk 'seo' 'Compared with live site' '/a' 'pass'))
 $o = Render (Results 't44' $c @('/a')); Ok 'a png-named finding does not count as the PNG check' ($o.verdict -eq 'INCOMPLETE') "$($o.verdict)"
 # 10. Page strings.
 $c = (Full '/a') + @((Chk 'layout' 'No scroll' '/a (desktop / phone)' 'pass'))
@@ -170,4 +170,11 @@ Ok 'older images on a session page are listed but do not block' ($o.verdict -eq 
 # Without session_pages (older results), the worked pages set the scope.
 $c = (Full '/a') + @((Chk 'image' 'Image sizes' '/z' 'fail' 'warning' 'pre_existing'))
 $o = Render (Results 't56' $c @('/a')); Ok 'older results without session_pages still work' ($o.verdict -eq 'PASS') "$($o.verdict)"
+Write-Host "`n== Layout and live-site comparison =="
+$base = @((Chk 'image' 'Image sizes' '/a' 'pass'), (Chk 'image' 'PNG images' '/a' 'pass'), (Chk 'page' 'Console errors' '/a' 'pass'))
+$o = Render (Results 't60' ($base + (Chk 'seo' 'Compared with live site' '/a' 'pass')) @('/a')); Ok 'worked page without a layout check -> INCOMPLETE' ($o.verdict -eq 'INCOMPLETE' -and $o.not_verified -eq 1) "$($o.verdict) nv=$($o.not_verified)"
+$o = Render (Results 't61' ($base + (Chk 'layout' 'Layout' '/a' 'pass')) @('/a')); Ok 'worked page without a live-site comparison -> INCOMPLETE' ($o.verdict -eq 'INCOMPLETE' -and $o.not_verified -eq 1) "$($o.verdict) nv=$($o.not_verified)"
+$c = (Full '/a') + @((Chk 'image' 'Image sizes' '/b' 'pass'), (Chk 'image' 'PNG images' '/b' 'pass'))
+$o = Render (WithSession (Results 't62' $c @('/a')) @('/a', '/b')); Ok 'earlier session page needs images only, not layout or comparison' ($o.verdict -eq 'PASS') "$($o.verdict) $($o.why)"
+$o = Render (Results 't63' ($base + (Chk 'layout' 'Layout check at 375px' '/a' 'pass') + (Chk 'seo' 'Compared with live site' '/a' 'pass')) @('/a')); Ok 'a differently named layout row does not count' ($o.verdict -eq 'INCOMPLETE') "$($o.verdict)"
 Write-Host "`n$($script:n - $script:fails) of $($script:n) passed"

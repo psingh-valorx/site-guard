@@ -127,6 +127,30 @@
       "attribution": "this_session",
       "evidence": "1 new PNG image:\nhero-image.png: 640 KB",
       "fix": "Replace with WebP, or SVG for logos and icons."
+    },
+    {
+      "area": "page",
+      "name": "Console errors",
+      "page": "/demo",
+      "status": "pass",
+      "severity": "info",
+      "evidence": "No errors."
+    },
+    {
+      "area": "layout",
+      "name": "Layout",
+      "page": "/demo",
+      "status": "pass",
+      "severity": "info",
+      "evidence": "1920 px: no sideways scroll, H1 clear of the nav\n1366 px: no sideways scroll, H1 clear of the nav\n768 px: no sideways scroll, H1 clear of the nav\n375 px: no sideways scroll, H1 clear of the nav"
+    },
+    {
+      "area": "seo",
+      "name": "Compared with live site",
+      "page": "/demo",
+      "status": "pass",
+      "severity": "info",
+      "evidence": "H1 changed on purpose (see H1 rewritten).\nTitle, description, canonical, robots, social tags and schema all match the live site."
     }
   ],
   "earlier_issues": [

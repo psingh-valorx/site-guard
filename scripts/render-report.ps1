@@ -74,6 +74,8 @@ function SamePage($a, $b) { return ([string]$a).Trim() -eq ([string]$b).Trim() }
 function IsSizeCheck($c) { return ([string]$c.name).Trim() -match '^(?i)image sizes?$' }
 function IsPngCheck($c) { return ([string]$c.name).Trim() -match '^(?i)png images?$' }
 function IsConsoleCheck($c) { return ([string]$c.name).Trim() -match '^(?i)console errors?$' }
+function IsLayoutCheck($c) { return ([string]$c.name).Trim() -match '^(?i)layout$' }
+function IsCompareCheck($c) { return ([string]$c.name).Trim() -match '^(?i)compared with (the )?live site$' }
 function IsImageCheck($c) { return ((IsSizeCheck $c) -or (IsPngCheck $c) -or (([string]$c.name).Trim() -match '^(?i)broken images?$')) }
 
 # The pages this session is answerable for: every page it changed in the whole session
@@ -163,10 +165,21 @@ foreach ($p in $checkedPages) {
         $checks += [pscustomobject]@{ area = 'image'; name = 'PNG images'; page = $p; status = 'not_verified'; severity = 'breaking'; evidence = 'Added by the report: no PNG check was recorded for this page.' }
     }
 }
-$consolePages = @($checks | Where-Object { IsConsoleCheck $_ } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
-foreach ($p in @(Arr $r.scope.worked_pages | ForEach-Object { PagePaths $_ } | Sort-Object -Unique)) {
-    if ($consolePages -notcontains $p) {
-        $checks += [pscustomobject]@{ area = 'page'; name = 'Console errors'; page = $p; status = 'not_verified'; severity = 'warning'; evidence = 'Added by the report: this worked page was not opened in Chrome with its console read.' }
+# Pages worked on since the last check also need their console read, their layout checked at every
+# width, and a comparison with the live site. Pages that passed earlier and haven't changed since
+# aren't checked again.
+$required = @(
+    @{ test = { param($c) IsConsoleCheck $c }; area = 'page'; name = 'Console errors'; why = 'this worked page was not opened in Chrome with its console read.' },
+    @{ test = { param($c) IsLayoutCheck $c }; area = 'layout'; name = 'Layout'; why = 'no layout check at every width was recorded for this worked page.' },
+    @{ test = { param($c) IsCompareCheck $c }; area = 'seo'; name = 'Compared with live site'; why = 'no comparison with the live site was recorded for this worked page.' }
+)
+$workedPaths = @(Arr $r.scope.worked_pages | ForEach-Object { PagePaths $_ } | Sort-Object -Unique)
+foreach ($req in $required) {
+    $have = @($checks | Where-Object { & $req.test $_ } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
+    foreach ($p in $workedPaths) {
+        if ($have -notcontains $p) {
+            $checks += [pscustomobject]@{ area = $req.area; name = $req.name; page = $p; status = 'not_verified'; severity = 'warning'; evidence = "Added by the report: $($req.why)" }
+        }
     }
 }
 # Oversized and PNG images block publishing. Whether they count against this work still depends on
