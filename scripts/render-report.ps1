@@ -5,7 +5,8 @@ param(
     [string]$OutDir = (Join-Path $env:USERPROFILE '.site-guard\reports'),
     [string]$CheckpointFile = (Join-Path $env:USERPROFILE '.site-guard\state\checkpoints.json'),
     [switch]$NoCheckpoint,
-    [switch]$NoReveal   # don't open File Explorer at the report
+    [switch]$NoReveal,   # don't open File Explorer at the report
+    [switch]$NoImageAudit   # don't re-read the session's pages to check its images (for tests)
 )
 
 $ErrorActionPreference = 'Stop'
@@ -190,6 +191,77 @@ foreach ($c in $checks) {
     }
 }
 
+# --- Images added during this session ---
+# Claude may misjudge which images are new, so the report checks it itself: it reads every page this
+# session changed on dev and flags any image uploaded after the session started (the upload time is in
+# the Webflow file name) that's over its limit or is a PNG. Those block publishing, whatever
+# production shows, because production may already hold this session's work.
+$audit = [ordered]@{ ran = $false; session_started_at = $null; images_from_session = 0; note = $null }
+if (-not $NoImageAudit -and $scopePages.Count -gt 0 -and $r.dev_host) {
+    $sessionStart = $r.scope.session_started_at
+    if (-not $sessionStart -and $r.session_id) {
+        try {
+            $s = (& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'read-session.ps1') -SessionId $r.session_id) -join "`n" | ConvertFrom-Json
+            if ($s.ok) { $sessionStart = $s.session_started_at }
+        }
+        catch {}
+    }
+    if (-not $sessionStart) {
+        $audit.note = 'The report could not find when this session started, so it could not check which images the session added.'
+    }
+    else {
+        $audit.session_started_at = $sessionStart
+        $start = [datetime]::Parse([string]$sessionStart).ToUniversalTime()
+        $urls = ($scopePages | ForEach-Object { "https://$($r.dev_host)$_" }) -join ','
+        $pages = @()
+        # PowerShell 5.1 passes a JSON array down the pipeline as one object, so unroll it.
+        try { foreach ($x in ((& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'read-pages.ps1') -Urls $urls -AllowedHosts $r.dev_host) -join "`n" | ConvertFrom-Json)) { $pages += $x } }
+        catch { $audit.note = "The report could not read the session's pages on dev to check their images: $($_.Exception.Message)" }
+        foreach ($pg in $pages) {
+            if (-not $pg.ok) { continue }
+            $path = ([uri]$pg.url).AbsolutePath.TrimEnd('/'); if (-not $path) { $path = '/' }
+            $sizeCheck = @($checks | Where-Object { (IsSizeCheck $_) -and (@(PagePaths $_.page) -contains $path) }) | Select-Object -First 1
+            # Claude can name hero images and thumbnails in the check's image_categories; the rest are content.
+            $cats = @{}
+            if ($sizeCheck -and $sizeCheck.image_categories) { foreach ($pr in $sizeCheck.image_categories.PSObject.Properties) { $cats[$pr.Name] = [string]$pr.Value } }
+            $over = @(); $png = @()
+            foreach ($img in @($pg.image_sizes)) {
+                if (-not $img.uploaded_at -or [datetime]::Parse([string]$img.uploaded_at).ToUniversalTime() -lt $start) { continue }
+                $audit.images_from_session++
+                $name = $img.file -replace '^[0-9a-f]{24}_', ''
+                $cat = if ($cats.ContainsKey($name)) { $cats[$name] } elseif ($cats.ContainsKey($img.file)) { $cats[$img.file] } else { 'content' }
+                $limit = if ($img.format -eq 'svg') { 100 } elseif ($cat -eq 'hero') { 300 } elseif ($cat -eq 'thumbnail') { 100 } else { 200 }
+                $day = ([datetime]::Parse([string]$img.uploaded_at)).ToUniversalTime().ToString('d MMM', [Globalization.CultureInfo]::InvariantCulture)
+                if ($img.kb -gt $limit) { $over += "${name}: $($img.kb) KB (limit $limit KB), uploaded $day" }
+                if ($img.format -eq 'png') { $png += "${name}: $($img.kb) KB, uploaded $day" }
+            }
+            foreach ($kind in @(@{ list = $over; test = 'size'; name = 'Image sizes'; head = 'Counted by the report: uploaded during this session and over the limit'; fix = 'Compress these images to under their limit.' },
+                                @{ list = $png; test = 'png'; name = 'PNG images'; head = 'Counted by the report: PNG images uploaded during this session'; fix = 'Replace with WebP, or SVG for logos and icons.' })) {
+                if ($kind.list.Count -eq 0) { continue }
+                $c = if ($kind.test -eq 'size') { $sizeCheck } else { @($checks | Where-Object { (IsPngCheck $_) -and (@(PagePaths $_.page) -contains $path) }) | Select-Object -First 1 }
+                if (-not $c) {
+                    $c = [pscustomobject]@{ area = 'image'; name = $kind.name; page = $path; status = 'fail'; severity = 'breaking'; evidence = '' }
+                    $checks += $c
+                }
+                $alreadyCounted = $c.status -eq 'fail' -and $c.attribution -eq 'this_session'
+                $c.status = 'fail'
+                $c | Add-Member -NotePropertyName severity -NotePropertyValue 'breaking' -Force
+                $c | Add-Member -NotePropertyName attribution -NotePropertyValue 'this_session' -Force
+                if (-not $alreadyCounted) {
+                    $before = ([string]$c.evidence).Trim()
+                    $note = if ($before) { "`nEarlier note in this check, overruled by the report for these images: $before" } else { '' }
+                    $c | Add-Member -NotePropertyName evidence -NotePropertyValue ("$($kind.head):`n" + ($kind.list -join "`n") + $note).Trim() -Force
+                    if (-not $c.fix -or $c.fix -match '(?i)not from this session') { $c | Add-Member -NotePropertyName fix -NotePropertyValue $kind.fix -Force }
+                }
+            }
+        }
+        if ($pages.Count -gt 0) { $audit.ran = $true }
+    }
+    if ($audit.note) {
+        $checks += [pscustomobject]@{ area = 'image'; name = 'Images added this session'; page = 'whole session'; status = 'not_verified'; severity = 'breaking'; evidence = $audit.note }
+    }
+}
+
 # --- Forms ---
 # A form that didn't load on a page fails every check on that form there. Otherwise a check that
 # only compares form IDs could pass while visitors see no form. The other checks take the dead form's
@@ -285,7 +357,8 @@ if ($live.Count -gt 0) {
 
 Add '<h2>What changed</h2>'
 Add "<p>$(E $r.scope.notes)</p>"
-Add '<h3>Pages worked on</h3>'; Add (ListHtml $r.scope.worked_pages)
+Add '<h3>Pages changed since the last check</h3>'; Add (ListHtml $r.scope.worked_pages)
+if (@(Arr $r.scope.session_pages).Count -gt 0) { Add '<h3>All pages this session changed (images checked on each)</h3>'; Add (ListHtml $r.scope.session_pages) }
 Add '<h3>Shared changes</h3>'; Add (ListHtml $r.scope.shared_changes)
 if (@(Arr $r.scope.cms_items).Count -gt 0) { Add '<h3>CMS items</h3>'; Add (ListHtml $r.scope.cms_items) }
 
@@ -336,6 +409,10 @@ function CheckTable($rows) {
         $txt = $labels[[string]$c.status]
         if ($c.status -eq 'fail' -and $c.severity -eq 'warning') { $txt = 'Warning' }
         if ($c.status -eq 'fail' -and $c.severity -eq 'info') { $txt = 'Info'; $cls = 'info' }
+        # A failure that doesn't count against this work mustn't look like one, or a red "Fail" sits
+        # under a PASS verdict.
+        if ($c.status -eq 'fail' -and $c.attribution -eq 'pre_existing') { $txt = 'Already live'; $cls = 'info' }
+        if ($c.status -eq 'fail' -and $c.attribution -eq 'intended') { $txt = 'Intended'; $cls = 'info' }
         $evidence = OrDash $c.evidence
         if ($c.fix) { $evidence += "<br><b>Fix:</b> $(OrDash $c.fix)" }
         $out += "<tr><td>$(E $c.name)</td><td>$(OrDash $c.page)</td><td>$(Pill $cls $txt)</td><td>$evidence</td></tr>"
@@ -344,13 +421,13 @@ function CheckTable($rows) {
 }
 
 Add '<h2>Forms and flows</h2>'
-Add (CheckTable ($checks | Where-Object { @('form', 'flow') -contains $_.area -and $notCounted -notcontains $_.attribution }))
+Add (CheckTable ($checks | Where-Object { @('form', 'flow') -contains $_.area -and ($_.status -ne 'fail' -or $notCounted -notcontains $_.attribution) }))
 
 Add '<h2>Page health and layout</h2>'
-Add (CheckTable ($checks | Where-Object { @('page', 'layout') -contains $_.area -and $notCounted -notcontains $_.attribution }))
+Add (CheckTable ($checks | Where-Object { @('page', 'layout') -contains $_.area -and ($_.status -ne 'fail' -or $notCounted -notcontains $_.attribution) }))
 
 Add '<h2>SEO and images</h2>'
-Add (CheckTable ($checks | Where-Object { @('seo', 'image') -contains $_.area -and $notCounted -notcontains $_.attribution }))
+Add (CheckTable ($checks | Where-Object { @('seo', 'image') -contains $_.area -and ($_.status -ne 'fail' -or $notCounted -notcontains $_.attribution) }))
 
 $outside = @($checks | Where-Object { $_.status -eq 'fail' -and $_.attribution -eq 'outside_session' })
 $review = @($checks | Where-Object { $_.status -eq 'fail' -and $_.attribution -eq 'needs_review' })
@@ -460,6 +537,7 @@ if (-not $NoReveal) {
     pdf = $(if ($pdfError) { $null } else { $pdfFile })
     html = $htmlFile
     pdf_error = $pdfError
+    image_audit = [pscustomobject]$audit
     # Ready-made Markdown links, so the chat can show the report as something to click.
     pdf_link = $(if ($pdfError -or -not (Test-Path $pdfFile)) { $null } else { "[Open the PDF report]($(([uri](Get-Item $pdfFile).FullName).AbsoluteUri))" })
     folder_path = (Get-Item $OutDir).FullName

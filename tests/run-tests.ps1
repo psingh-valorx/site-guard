@@ -31,7 +31,7 @@ function Results($id, $checks, $worked = @(), $extra = @{}) {
 function Render($r, [string]$cp = '', [switch]$Raw) {
     $f = Join-Path $work "$($r.run_id).json"
     $r | ConvertTo-Json -Depth 10 | Set-Content $f -Encoding UTF8
-    $a = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $render, '-ResultsFile', $f, '-OutDir', (Join-Path $work 'out'), '-NoReveal')
+    $a = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $render, '-ResultsFile', $f, '-OutDir', (Join-Path $work 'out'), '-NoReveal', '-NoImageAudit')
     if ($cp) { $a += @('-CheckpointFile', $cp) } else { $a += '-NoCheckpoint' }
     $ErrorActionPreference = 'Continue'
     $text = (& powershell @a 2>&1 | Out-String)
@@ -177,4 +177,8 @@ $o = Render (Results 't61' ($base + (Chk 'layout' 'Layout' '/a' 'pass')) @('/a')
 $c = (Full '/a') + @((Chk 'image' 'Image sizes' '/b' 'pass'), (Chk 'image' 'PNG images' '/b' 'pass'))
 $o = Render (WithSession (Results 't62' $c @('/a')) @('/a', '/b')); Ok 'earlier session page needs images only, not layout or comparison' ($o.verdict -eq 'PASS') "$($o.verdict) $($o.why)"
 $o = Render (Results 't63' ($base + (Chk 'layout' 'Layout check at 375px' '/a' 'pass') + (Chk 'seo' 'Compared with live site' '/a' 'pass')) @('/a')); Ok 'a differently named layout row does not count' ($o.verdict -eq 'INCOMPLETE') "$($o.verdict)"
+Write-Host "`n== Report shows passes =="
+$c = (Full '/a') + @((Chk 'form' 'Form 1 compared' '/book' 'pass' 'info' 'pre_existing' 'Same form.'))
+$o = Render (Results 't70' $c @('/a')); $h = Get-Content $o.html -Raw
+Ok 'a passing check labelled pre_existing is still shown' ($h -match 'Form 1 compared') 'pass row hidden'
 Write-Host "`n$($script:n - $script:fails) of $($script:n) passed"
