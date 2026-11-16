@@ -46,6 +46,18 @@ By default the file holds no secrets, so you can share it like any file. Without
 
 Teammates still turn on Claude in Chrome and connect Webflow themselves. If your settings change, make a new file and have everyone run it again.
 
+### Mac
+
+For teammates on a Mac, run this on your laptop as well:
+
+```
+powershell -ExecutionPolicy Bypass -File scripts\make-team-setup-mac.ps1 -IncludeMarketo
+```
+
+It creates `Site-Guard-Setup-Mac.zip`, which holds `Site-Guard-Setup-Mac.command` with permission to run. Building the zip needs Python. On the Mac, teammates unzip it and double-click the file. It saves the settings, installs PowerShell 7 if Homebrew is available, installs the plugin, and tests Marketo. The plugin's scripts run on a Mac with PowerShell 7 (`pwsh`), and the check itself works the same way.
+
+The first time, macOS may block a file downloaded from chat. If it does, open **System Settings > Privacy & Security**, click **Open Anyway** next to the message about the file, and confirm. On older macOS versions, right-click the file and choose **Open**.
+
 ## Before your first run
 
 1. **Site config (required):** copy `config/site-guard.example.yml` to `%USERPROFILE%\.site-guard\site-guard.yml` and fill it in, or get your team's copy. The plugin stops without it, and it never tests a site that isn't in that file.

@@ -16,14 +16,15 @@ $uri = [uri]$Url
 $hosts = @($AllowedHosts -split ',' | ForEach-Object { $_.Trim() })
 if ($uri.Scheme -ne 'https' -or $hosts -notcontains $uri.Host) { Done $false "Refused: $($uri.Host) is not an allowed host." }
 
-$browser = (& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'preflight.ps1') | ConvertFrom-Json).pdf_browser
+$PsExe = (Get-Process -Id $PID).Path
+$browser = (& $PsExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'preflight.ps1') | ConvertFrom-Json).pdf_browser
 if (-not $browser) { Done $false 'No Chrome or Edge found.' }
 
 $dir = Split-Path -Parent $OutFile
 if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
 if (Test-Path $OutFile) { Remove-Item $OutFile -Force }
 
-$profile_dir = Join-Path $env:TEMP ("site-guard-" + [guid]::NewGuid().ToString('N'))
+$profile_dir = Join-Path ([IO.Path]::GetTempPath()) ("site-guard-" + [guid]::NewGuid().ToString('N'))
 $browserArgs = @(
     '--headless=new', '--disable-gpu', '--hide-scrollbars', '--no-first-run',
     "--user-data-dir=`"$profile_dir`"",
@@ -32,7 +33,9 @@ $browserArgs = @(
     "--screenshot=`"$OutFile`"",
     "`"$Url`""
 )
-$p = Start-Process -FilePath $browser -ArgumentList $browserArgs -PassThru -WindowStyle Hidden
+$start = @{ FilePath = $browser; ArgumentList = $browserArgs; PassThru = $true }
+if ($env:OS -eq 'Windows_NT') { $start.WindowStyle = 'Hidden' }
+$p = Start-Process @start
 $deadline = (Get-Date).AddSeconds(60)
 while ((Get-Date) -lt $deadline -and -not ((Test-Path $OutFile) -and $p.HasExited)) { Start-Sleep -Milliseconds 500 }
 if (-not $p.HasExited) { try { $p.Kill() } catch {} }

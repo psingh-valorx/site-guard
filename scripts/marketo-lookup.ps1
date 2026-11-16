@@ -5,7 +5,7 @@ param(
     [string]$Since = (Get-Date).ToUniversalTime().AddHours(-1).ToString('yyyy-MM-ddTHH:mm:ssZ'),
     [string]$Fields = 'id,email,firstName,lastName,company,createdAt,updatedAt,sfdcType,sfdcLeadId,sfdcContactId,sfdcAccountId',
     [Parameter(Mandatory = $true)][string]$AllowedEmail,
-    [string]$EnvPath = (Join-Path $env:USERPROFILE '.site-guard\.env')
+    [string]$EnvPath = [IO.Path]::Combine($HOME, '.site-guard', '.env')
 )
 
 $ErrorActionPreference = 'Stop'

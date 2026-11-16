@@ -2,14 +2,16 @@
 # The verdict is computed here, not by Claude, so a check that did not run can never read as a pass.
 param(
     [Parameter(Mandatory = $true)][string]$ResultsFile,
-    [string]$OutDir = (Join-Path $env:USERPROFILE '.site-guard\reports'),
-    [string]$CheckpointFile = (Join-Path $env:USERPROFILE '.site-guard\state\checkpoints.json'),
+    [string]$OutDir = [IO.Path]::Combine($HOME, '.site-guard', 'reports'),
+    [string]$CheckpointFile = [IO.Path]::Combine($HOME, '.site-guard', 'state', 'checkpoints.json'),
     [switch]$NoCheckpoint,
     [switch]$NoReveal,   # don't open File Explorer at the report
     [switch]$NoImageAudit   # don't re-read the session's pages to check its images (for tests)
 )
 
 $ErrorActionPreference = 'Stop'
+# Child scripts run under the same PowerShell as this one: Windows PowerShell, or pwsh on a Mac.
+$PsExe = (Get-Process -Id $PID).Path
 
 function Arr($x) { if ($null -eq $x) { return @() } return @($x) }
 function E($x) { if ($null -eq $x) { return '' } return [System.Net.WebUtility]::HtmlEncode([string]$x) }
@@ -201,7 +203,7 @@ if (-not $NoImageAudit -and $scopePages.Count -gt 0 -and $r.dev_host) {
     $sessionStart = $r.scope.session_started_at
     if (-not $sessionStart -and $r.session_id) {
         try {
-            $s = (& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'read-session.ps1') -SessionId $r.session_id) -join "`n" | ConvertFrom-Json
+            $s = (& $PsExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'read-session.ps1') -SessionId $r.session_id) -join "`n" | ConvertFrom-Json
             if ($s.ok) { $sessionStart = $s.session_started_at }
         }
         catch {}
@@ -215,7 +217,7 @@ if (-not $NoImageAudit -and $scopePages.Count -gt 0 -and $r.dev_host) {
         $urls = ($scopePages | ForEach-Object { "https://$($r.dev_host)$_" }) -join ','
         $pages = @()
         # PowerShell 5.1 passes a JSON array down the pipeline as one object, so unroll it.
-        try { foreach ($x in ((& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'read-pages.ps1') -Urls $urls -AllowedHosts $r.dev_host) -join "`n" | ConvertFrom-Json)) { $pages += $x } }
+        try { foreach ($x in ((& $PsExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'read-pages.ps1') -Urls $urls -AllowedHosts $r.dev_host) -join "`n" | ConvertFrom-Json)) { $pages += $x } }
         catch { $audit.note = "The report could not read the session's pages on dev to check their images: $($_.Exception.Message)" }
         foreach ($pg in $pages) {
             if (-not $pg.ok) { continue }
@@ -470,13 +472,13 @@ $pdfFile = Join-Path $OutDir "site-guard-$safeId.pdf"
 [IO.File]::WriteAllText($htmlFile, $html, (New-Object System.Text.UTF8Encoding($false)))
 if (Test-Path $pdfFile) { Remove-Item $pdfFile -Force }
 
-$browser = (& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'preflight.ps1') | ConvertFrom-Json).pdf_browser
+$browser = (& $PsExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'preflight.ps1') | ConvertFrom-Json).pdf_browser
 $pdfError = $null
 if (-not $browser) {
     $pdfError = 'No Chrome or Edge found.'
 }
 else {
-    $profile_dir = Join-Path $env:TEMP ("site-guard-" + [guid]::NewGuid().ToString('N'))
+    $profile_dir = Join-Path ([IO.Path]::GetTempPath()) ("site-guard-" + [guid]::NewGuid().ToString('N'))
     $fileUrl = ([uri]$htmlFile).AbsoluteUri
     $browserArgs = @(
         '--headless=new', '--disable-gpu', '--no-first-run',
@@ -486,9 +488,19 @@ else {
         "--print-to-pdf=`"$pdfFile`"",
         "`"$fileUrl`""
     )
-    $p = Start-Process -FilePath $browser -ArgumentList $browserArgs -PassThru -WindowStyle Hidden
+    $start = @{ FilePath = $browser; ArgumentList = $browserArgs; PassThru = $true }
+    if ($env:OS -eq 'Windows_NT') { $start.WindowStyle = 'Hidden' }
+    $p = Start-Process @start
     $deadline = (Get-Date).AddSeconds(90)
-    while ((Get-Date) -lt $deadline -and -not ((Test-Path $pdfFile) -and $p.HasExited)) { Start-Sleep -Milliseconds 500 }
+    $lastSize = -1
+    while ((Get-Date) -lt $deadline -and -not $p.HasExited) {
+        Start-Sleep -Milliseconds 500
+        if (Test-Path $pdfFile) {
+            $size = (Get-Item $pdfFile).Length
+            if ($size -gt 0 -and $size -eq $lastSize) { break }
+            $lastSize = $size
+        }
+    }
     if (-not $p.HasExited) { try { $p.Kill() } catch {} }
     Start-Sleep -Milliseconds 500
     try { Remove-Item $profile_dir -Recurse -Force -ErrorAction Stop } catch {}
@@ -522,7 +534,14 @@ if (-not $NoCheckpoint) {
 $revealed = $false
 if (-not $NoReveal) {
     $target = if (-not $pdfError -and (Test-Path $pdfFile)) { $pdfFile } else { $htmlFile }
-    try { Start-Process explorer.exe -ArgumentList "/select,`"$((Get-Item $target).FullName)`""; $revealed = $true } catch {}
+    $full = (Get-Item $target).FullName
+    try {
+        if ($env:OS -eq 'Windows_NT') { Start-Process explorer.exe -ArgumentList "/select,`"$full`"" }
+        elseif ($IsMacOS) { & open -R $full }
+        else { & xdg-open (Split-Path -Parent $full) }
+        $revealed = $true
+    }
+    catch {}
 }
 
 [pscustomobject]@{

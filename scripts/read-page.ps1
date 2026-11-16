@@ -18,7 +18,10 @@ if ($uri.Scheme -ne 'https' -or $hosts -notcontains $uri.Host) { Done ([pscustom
 $status = 0
 $html = ''
 try {
-    $resp = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 30 -MaximumRedirection 5
+    $req = @{ Uri = $Url; UseBasicParsing = $true; TimeoutSec = 30; MaximumRedirection = 5 }
+    # PowerShell 7 throws on a 404 unless told not to; Windows PowerShell throws a WebException instead.
+    if ($PSVersionTable.PSVersion.Major -ge 7) { $req.SkipHttpErrorCheck = $true }
+    $resp = Invoke-WebRequest @req
     $status = [int]$resp.StatusCode
     $html = [Text.Encoding]::UTF8.GetString($resp.RawContentStream.ToArray())
 }
@@ -26,6 +29,7 @@ catch [System.Net.WebException] {
     if ($_.Exception.Response) { $status = [int]$_.Exception.Response.StatusCode }
     else { Done ([pscustomobject]@{ ok = $false; url = $Url; error = $_.Exception.Message }) }
 }
+catch { Done ([pscustomobject]@{ ok = $false; url = $Url; error = $_.Exception.Message }) }
 
 $xmlValid = $false
 try { [void][xml]$html; $xmlValid = $true } catch {}

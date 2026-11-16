@@ -9,6 +9,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $script = Join-Path $PSScriptRoot 'read-page.ps1'
+$PsExe = (Get-Process -Id $PID).Path
 $list = @($Urls -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 
 $pool = [runspacefactory]::CreateRunspacePool(1, [math]::Max(1, $MaxParallel))
@@ -19,11 +20,11 @@ foreach ($u in $list) {
     $ps = [powershell]::Create()
     $ps.RunspacePool = $pool
     [void]$ps.AddScript({
-        param($script, $url, $hosts, $links)
+        param($script, $url, $hosts, $links, $psExe)
         $a = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $script, '-Url', $url, '-AllowedHosts', $hosts)
         if ($links) { $a += '-CheckLinks' }
-        (& powershell @a) -join "`n"
-    }).AddArgument($script).AddArgument($u).AddArgument($AllowedHosts).AddArgument($links)
+        (& $psExe @a) -join "`n"
+    }).AddArgument($script).AddArgument($u).AddArgument($AllowedHosts).AddArgument($links).AddArgument($PsExe)
     $jobs += [pscustomobject]@{ url = $u; ps = $ps; handle = $ps.BeginInvoke() }
 }
 

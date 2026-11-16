@@ -5,19 +5,29 @@ param(
     [string]$TranscriptPath,
     [string]$ProjectDir = (Get-Location).Path,
     [string]$Since,
-    [string]$CheckpointFile = (Join-Path $env:USERPROFILE '.site-guard\state\checkpoints.json')
+    [string]$CheckpointFile = [IO.Path]::Combine($HOME, '.site-guard', 'state', 'checkpoints.json')
 )
 
 $ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName System.Web.Extensions
-$json = New-Object System.Web.Script.Serialization.JavaScriptSerializer
-$json.MaxJsonLength = [int]::MaxValue
+# Windows PowerShell has a fast JSON reader built in; PowerShell 7 (used on a Mac) reads JSON into
+# the same shape of hashtables and arrays with ConvertFrom-Json -AsHashtable.
+if ($PSVersionTable.PSVersion.Major -ge 7) {
+    function FromJson($s) { return (ConvertFrom-Json -InputObject $s -AsHashtable -Depth 200) }
+    function ToJson($o) { return (ConvertTo-Json -InputObject $o -Compress -Depth 100) }
+}
+else {
+    Add-Type -AssemblyName System.Web.Extensions
+    $json = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+    $json.MaxJsonLength = [int]::MaxValue
+    function FromJson($s) { return $json.DeserializeObject($s) }
+    function ToJson($o) { return $json.Serialize($o) }
+}
 
 function Done($obj) { $obj | ConvertTo-Json -Depth 6; exit 0 }
 
 $sessionCertain = $true
 $recentOthers = 0
-$configRoot = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $env:USERPROFILE '.claude' }
+$configRoot = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $HOME '.claude' }
 $projectsDir = Join-Path $configRoot 'projects'
 if (-not $TranscriptPath -and $SessionId -match '^[0-9a-fA-F-]{36}$') {
     # The session ID names the transcript file, so find it in whichever project folder holds it.
@@ -77,7 +87,7 @@ try {
         if ($line.Contains('"compact_boundary"')) { $compactions++ }
         # Only Claude's own tool calls: tool results also mention these names and can be huge.
         if (-not $line.Contains('"type":"tool_use"') -or -not $line.Contains('"name":"mcp__claude_ai_Webflow__') -or -not $line.Contains('"type":"assistant"')) { continue }
-        try { $o = $json.DeserializeObject($line) } catch { $unparsed++; continue }
+        try { $o = FromJson $line } catch { $unparsed++; continue }
         if ($o['type'] -ne 'assistant') { continue }
         $ts = $o['timestamp']
         $inWindow = -not ($sinceTime -and $ts -and ([datetime]::Parse($ts).ToUniversalTime() -le $sinceTime))
@@ -97,7 +107,7 @@ try {
                 }
             }
             if ($isWrite) {
-                foreach ($m in [regex]::Matches($json.Serialize($callInput), '"(pageId|page_id)"\s*:\s*"([0-9a-f]{24})"')) { $sessionPages[$m.Groups[2].Value] = 1 }
+                foreach ($m in [regex]::Matches((ToJson $callInput), '"(pageId|page_id)"\s*:\s*"([0-9a-f]{24})"')) { $sessionPages[$m.Groups[2].Value] = 1 }
             }
             if (-not $inWindow) { continue }
             $toolCalls++
@@ -105,7 +115,7 @@ try {
             $last = $ts
             $tool = $name -replace '^mcp__claude_ai_Webflow__', ''
             $toolInput = $block['input']
-            $text = $json.Serialize($toolInput)
+            $text = ToJson $toolInput
             foreach ($m in [regex]::Matches($text, $idPattern)) {
                 $kind = ($m.Groups[1].Value -replace '^scope_', '' -replace '_?[iI]ds?$', '').ToLower()
                 if (-not $ids.ContainsKey($kind)) { continue }

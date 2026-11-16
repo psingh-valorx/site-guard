@@ -1,14 +1,14 @@
 ---
 description: Check whether your work published to the dev site broke forms, flows, SEO or images, and create a PDF report
 argument-hint: "[--full]"
-allowed-tools: Read, Glob, Grep, ToolSearch, Write(~/.site-guard/**), Edit(~/.site-guard/**), Bash(powershell -NoProfile -ExecutionPolicy Bypass -File *site-guard*scripts*), PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File *site-guard*scripts*), mcp__claude-in-chrome__tabs_context_mcp, mcp__claude-in-chrome__tabs_create_mcp, mcp__claude-in-chrome__navigate, mcp__claude-in-chrome__computer, mcp__claude-in-chrome__read_page, mcp__claude-in-chrome__find, mcp__claude-in-chrome__form_input, mcp__claude-in-chrome__javascript_tool, mcp__claude-in-chrome__read_console_messages, mcp__claude-in-chrome__read_network_requests, mcp__claude-in-chrome__resize_window, mcp__claude-in-chrome__tabs_close_mcp, mcp__claude-in-chrome__list_connected_browsers, mcp__claude-in-chrome__select_browser
+allowed-tools: Read, Glob, Grep, ToolSearch, Write(~/.site-guard/**), Edit(~/.site-guard/**), Bash(powershell -NoProfile -ExecutionPolicy Bypass -File *site-guard*scripts*), PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File *site-guard*scripts*), Bash(pwsh -NoProfile -ExecutionPolicy Bypass -File *site-guard*scripts*), mcp__claude-in-chrome__tabs_context_mcp, mcp__claude-in-chrome__tabs_create_mcp, mcp__claude-in-chrome__navigate, mcp__claude-in-chrome__computer, mcp__claude-in-chrome__read_page, mcp__claude-in-chrome__find, mcp__claude-in-chrome__form_input, mcp__claude-in-chrome__javascript_tool, mcp__claude-in-chrome__read_console_messages, mcp__claude-in-chrome__read_network_requests, mcp__claude-in-chrome__resize_window, mcp__claude-in-chrome__tabs_close_mcp, mcp__claude-in-chrome__list_connected_browsers, mcp__claude-in-chrome__select_browser
 ---
 
 # Site Guard check
 
 Check whether the work in **this session** broke anything on the dev site, then produce a PDF report. Arguments: `$ARGUMENTS`. Session ID: `${CLAUDE_SESSION_ID}`.
 
-Run this in the main conversation, never in a subagent or fork that lacks the session's history. Run the plugin's scripts exactly as written below, with the Bash tool, so they don't need extra approvals. Read `%USERPROFILE%\.site-guard\site-guard.yml` and `${CLAUDE_PLUGIN_ROOT}/config/seo-rules.yml` first, using the Read tool. They hold every URL, form, rule and threshold.
+Run this in the main conversation, never in a subagent or fork that lacks the session's history. Run the plugin's scripts exactly as written below, with the Bash tool, so they don't need extra approvals. **On a Mac,** run each script command with `pwsh` in place of `powershell` and keep everything else the same, such as `pwsh -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scripts/preflight.ps1"`. If `pwsh` isn't installed, stop and tell the user to run the Mac setup file again, which installs it. Read `~/.site-guard/site-guard.yml` (on Windows, `%USERPROFILE%\.site-guard\site-guard.yml`) and `${CLAUDE_PLUGIN_ROOT}/config/seo-rules.yml` first, using the Read tool. They hold every URL, form, rule and threshold.
 
 **If the local config doesn't exist, stop.** Tell the user to copy `${CLAUDE_PLUGIN_ROOT}/config/site-guard.example.yml` there and fill it in, or to get their team's copy. Never guess a site, and never run against a site that isn't in that file.
 
@@ -260,6 +260,6 @@ Close the tab you opened. Tell the user the verdict, the answer to "Safe to publ
 **Path:** `<pdf_path>`
 ```
 
-If there's no PDF, use `html_link` on the first line and the HTML file's path on the last. If `folder_opened` is false, leave out "(opened in File Explorer)".
+If there's no PDF, use `html_link` on the first line and the HTML file's path on the last. On a Mac, write "(opened in Finder)" instead. If `folder_opened` is false, leave that part out.
 
 If a real submission was made, say that cleanup was still scheduled when the report was made, and when it's due.
