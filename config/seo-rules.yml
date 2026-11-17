@@ -3,7 +3,7 @@
 #
 # severity: a failed breaking check blocks publishing; a failed warning or info check is reported but does not.
 # Before reporting a change, decide from the session whether it was intended.
-# An intended change is reported as intended, whatever its severity here.
+# An intended change is labelled intended, but keeps its severity: a breaking rule broken on purpose still blocks publishing.
 #
 # Run every rule on dev and on the same production page. A problem found on both is
 # attribution: pre_existing, not a new issue. Otherwise every run raises the same warnings

@@ -177,7 +177,7 @@ These per-page checks ("Console errors", "Layout", "Compared with live site") co
 
 Check layout at each width in `viewports`. Browser window resizing often doesn't change the page width, so confirm `window.innerWidth` after resizing. If it didn't change, use `javascript_tool` on the dev page to add a hidden-from-view iframe of the same dev URL at that width, read `scrollWidth`, `clientWidth` and the H1's position inside it, then remove it. Links and forms inside it are never clicked.
 
-If the page returns 404 on production, it's a new page. Skip the comparison rules and apply the rest. A page the session deleted on purpose is `intended`.
+If the page returns 404 on production, it's a new page. Skip the comparison rules and apply the rest. A page the session deleted on purpose is `intended`, and it still counts as breaking, like any rule broken on purpose.
 
 Run every rule against production as well. Anything production already has gets `attribution: pre_existing`, so only what this work added or made worse counts against it. **Exception:** if Step 2 found production was published at the same time as or after this session's edits, production already holds this session's work, so matching it proves nothing. Then decide from the session's edits instead, as Step 2 says, for every rule here, including console errors, images and PNGs. For checks that need a browser on production, use only what a plain read shows, and use `needs_review` if you can't tell.
 
@@ -229,7 +229,7 @@ Group repeated findings into one row with a count and the names of the items aff
 Mark every difference or failure with an `attribution`. A check that passed doesn't need one:
 
 - `this_session`: caused by this session's work
-- `intended`: a difference this session meant to make, such as a rewritten H1
+- `intended`: a difference this session meant to make, such as a rewritten H1. Intended doesn't excuse a broken rule: a failure of a `breaking` rule still blocks publishing even when it was done on purpose, such as a removed title or a form broken to test something, and an intended warning is still a warning. Keep the rule's real severity; never lower it because the change was deliberate.
 - `outside_session`: new compared with production, but not related to this session's work, such as a teammate's publish
 - `pre_existing`: production has the same problem, so it's neither new nor caused by this work
 - `needs_review`: you can't tell. Never guess `intended` or `pre_existing`.

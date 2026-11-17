@@ -160,12 +160,21 @@ if ($outOfScope.Count -gt 0) {
 $checkedPages = $scopePages
 $sizedPages = @($checks | Where-Object { IsSizeCheck $_ } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
 $pngPages = @($checks | Where-Object { IsPngCheck $_ } | ForEach-Object { PagePaths $_.page } | Sort-Object -Unique)
+# A page changed earlier in the session but not since the last check was already checked then, so a
+# missing row there is carried forward as a pass, not "could not be verified". The image audit below
+# still re-reads the page and fails it if an image from this session is too large or a PNG. A page
+# changed since the last check, or any page on a session's first check, must be checked now.
+$changedSinceLast = @(Arr $r.scope.worked_pages | ForEach-Object { PagePaths $_ } | Sort-Object -Unique)
 foreach ($p in $checkedPages) {
-    if ($sizedPages -notcontains $p) {
-        $checks += [pscustomobject]@{ area = 'image'; name = 'Image sizes'; page = $p; status = 'not_verified'; severity = 'breaking'; evidence = 'Added by the report: no image size check was recorded for this page.' }
-    }
-    if ($pngPages -notcontains $p) {
-        $checks += [pscustomobject]@{ area = 'image'; name = 'PNG images'; page = $p; status = 'not_verified'; severity = 'breaking'; evidence = 'Added by the report: no PNG check was recorded for this page.' }
+    $carry = $sinceRun -and ($changedSinceLast -notcontains $p)
+    foreach ($kind in @(@{ have = $sizedPages; name = 'Image sizes'; what = 'image size' }, @{ have = $pngPages; name = 'PNG images'; what = 'PNG' })) {
+        if ($kind.have -contains $p) { continue }
+        if ($carry) {
+            $checks += [pscustomobject]@{ area = 'image'; name = $kind.name; page = $p; status = 'pass'; severity = 'info'; carried_forward = $true; evidence = 'Checked in an earlier run, and this page hasn''t changed since.' }
+        }
+        else {
+            $checks += [pscustomobject]@{ area = 'image'; name = $kind.name; page = $p; status = 'not_verified'; severity = 'breaking'; evidence = "Added by the report: this page changed, but no $($kind.what) check was recorded for it." }
+        }
     }
 }
 # Pages worked on since the last check also need their console read, their layout checked at every
@@ -259,6 +268,11 @@ if (-not $NoImageAudit -and $scopePages.Count -gt 0 -and $r.dev_host) {
         }
         if ($pages.Count -gt 0) { $audit.ran = $true }
     }
+    foreach ($c in $checks) {
+        if ($c.carried_forward -and $c.status -eq 'pass' -and $audit.ran) {
+            $c | Add-Member -NotePropertyName evidence -NotePropertyValue "$($c.evidence)`nThe report re-read its images today: none added this session are too large or PNG." -Force
+        }
+    }
     if ($audit.note) {
         $checks += [pscustomobject]@{ area = 'image'; name = 'Images added this session'; page = 'whole session'; status = 'not_verified'; severity = 'breaking'; evidence = $audit.note }
     }
@@ -301,8 +315,9 @@ $r | Add-Member -NotePropertyName checks -NotePropertyValue $checks -Force
 
 # --- Verdict ---
 
-# Intended changes and problems production already has do not count against this work.
-$notCounted = 'intended', 'pre_existing'
+# Only problems production already had are left out. A rule broken on purpose still counts: an
+# intended change that breaks a breaking rule blocks publishing, and an intended warning is a warning.
+$notCounted = @('pre_existing')
 $breaking = @($checks | Where-Object { $_.status -eq 'fail' -and $_.severity -eq 'breaking' -and $notCounted -notcontains $_.attribution })
 $warnings = @($checks | Where-Object { $_.status -eq 'fail' -and $_.severity -ne 'breaking' -and $notCounted -notcontains $_.attribution })
 $intended = @($checks | Where-Object { $_.status -eq 'fail' -and $_.attribution -eq 'intended' })
@@ -417,7 +432,9 @@ function CheckTable($rows) {
         # A failure that doesn't count against this work mustn't look like one, or a red "Fail" sits
         # under a PASS verdict.
         if ($c.status -eq 'fail' -and $c.attribution -eq 'pre_existing') { $txt = 'Already live'; $cls = 'info' }
-        if ($c.status -eq 'fail' -and $c.attribution -eq 'intended') { $txt = 'Intended'; $cls = 'info' }
+        if ($c.status -eq 'fail' -and $c.attribution -eq 'intended') {
+            if ($c.severity -eq 'breaking') { $txt = 'Intended, breaks a rule'; $cls = 'fail' } else { $txt = 'Intended'; $cls = 'warning' }
+        }
         $evidence = OrDash $c.evidence
         if ($c.fix) { $evidence += "<br><b>Fix:</b> $(OrDash $c.fix)" }
         $out += "<tr><td>$(E $c.name)</td><td>$(OrDash $c.page)</td><td>$(Pill $cls $txt)</td><td>$evidence</td></tr>"

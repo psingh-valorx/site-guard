@@ -189,4 +189,18 @@ $r = Results 't81' ((Full '/a')) @('/a'); $first = Render $r
 $lock = [IO.File]::Open($first.pdf, 'Open', 'Read', 'None')
 try { $second = Render $r } finally { $lock.Close() }
 Ok 'a rerun works while the old PDF is open' ($second.verdict -eq 'PASS' -and $second.pdf -and $second.pdf -ne $first.pdf -and (Test-Path $second.pdf)) "pdf=$($second.pdf) err=$($second.pdf_error)"
+Write-Host "`n== Intended changes keep their severity =="
+$o = Render (Results 't90' ((Full '/a') + (Chk 'seo' 'Title removed' '/a' 'fail' 'breaking' 'intended')) @('/a')); $h = Get-Content $o.html -Raw
+Ok 'a breaking rule broken on purpose -> BREAKING' ($o.verdict -eq 'BREAKING' -and $o.breaking -eq 1) "$($o.verdict) b=$($o.breaking)"
+Ok '... labelled "Intended, breaks a rule"' ($h -match 'Intended, breaks a rule') 'label missing'
+$o = Render (Results 't91' ((Full '/a') + (Chk 'seo' 'H1 rewritten' '/a' 'fail' 'warning' 'intended')) @('/a'))
+Ok 'an intended warning stays a warning, not blocking' ($o.verdict -eq 'PASS' -and $o.warnings -eq 1) "$($o.verdict) w=$($o.warnings)"
+Write-Host "`n== Unchanged session pages are carried forward =="
+$cp = Join-Path $work 'cp-carry.json'
+WriteCp $cp @([pscustomobject]@{ session_id = 'sess-t95'; run_id = 'old'; finished_at = '2026-11-01T00:00:00Z'; open_issues = @() })
+$o = Render (WithSession (Results 't95' ((Full '/a')) @('/a')) @('/a', '/b')) $cp; $h = Get-Content $o.html -Raw
+Ok 'an earlier page unchanged since the last check passes as carried forward' ($o.verdict -eq 'PASS' -and $h -match 'Checked in an earlier run') "$($o.verdict) $($o.why)"
+WriteCp $cp @([pscustomobject]@{ session_id = 'sess-t96'; run_id = 'old'; finished_at = '2026-11-01T00:00:00Z'; open_issues = @() })
+$o = Render (WithSession (Results 't96' ((Full '/a')) @('/a', '/b')) @('/a', '/b')) $cp
+Ok 'a page changed since the last check with no image rows -> INCOMPLETE' ($o.verdict -eq 'INCOMPLETE') "$($o.verdict)"
 Write-Host "`n$($script:n - $script:fails) of $($script:n) passed"
