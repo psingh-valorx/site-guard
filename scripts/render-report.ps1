@@ -323,6 +323,28 @@ $warnings = @($checks | Where-Object { $_.status -eq 'fail' -and $_.severity -ne
 $intended = @($checks | Where-Object { $_.status -eq 'fail' -and $_.attribution -eq 'intended' })
 $preExisting = @($checks | Where-Object { $_.status -eq 'fail' -and $_.attribution -eq 'pre_existing' })
 $unverified = @($checks | Where-Object { $_.status -eq 'not_verified' })
+
+# One problem often fails several checks: a broken form fails its "loads" check, its comparison with
+# the live site and any flow that leads to it. Group breaking checks that share a dead form or the same
+# cause into one issue, with the rest listed as also affected. The count is the number of problems.
+function NormCause($s) { return ((([string]$s) -replace '\s+', ' ').Trim().ToLower()) }
+$issues = New-Object System.Collections.ArrayList
+$issueOf = @{}
+$byLead = @(@($breaking | Where-Object { IsDeadFormCheck $_ }) + @($breaking | Where-Object { -not (IsDeadFormCheck $_) }))
+foreach ($c in $byLead) {
+    $keys = @()
+    if ($c.form_id -and $deadForms.ContainsKey("$($c.form_id)|$($c.page)")) { $keys += "form|$($c.form_id)|$($c.page)" }
+    $nc = NormCause $c.cause
+    if ($nc -and $nc -ne '—' -and $nc -ne '-') { $keys += "cause|$nc" }
+    $issue = $null
+    foreach ($k in $keys) { if ($issueOf.ContainsKey($k)) { $issue = $issueOf[$k]; break } }
+    if (-not $issue) {
+        $issue = [pscustomobject]@{ lead = $c; others = (New-Object System.Collections.ArrayList) }
+        [void]$issues.Add($issue)
+    }
+    else { [void]$issue.others.Add($c) }
+    foreach ($k in $keys) { if (-not $issueOf.ContainsKey($k)) { $issueOf[$k] = $issue } }
+}
 $passed = @($checks | Where-Object { $_.status -eq 'pass' })
 
 $reasons = @()
@@ -334,7 +356,7 @@ if ($r.publish.unpublished_changes -eq $true) { $reasons += 'The site has unpubl
 
 if ($breaking.Count -gt 0) {
     $verdict = 'BREAKING'; $safe = 'No'
-    $why = "$($breaking.Count) breaking issue(s) found."
+    $why = "$($issues.Count) breaking issue(s) found."
     if ($reasons.Count -gt 0) { $why += ' ' + ($reasons -join ' ') }
 }
 elseif ($reasons.Count -gt 0) {
@@ -357,7 +379,7 @@ if ($r.sample -eq $true) { Add '<div class="note"><b>Sample report.</b> The resu
 Add "<p class=`"muted`">Run $(E $r.run_id) &middot; $(E $r.run_by) &middot; $(When $r.finished_at)</p>"
 Add "<div class=`"verdict v-$verdict`"><div class=`"word`">$verdict</div><div class=`"why`">$(E $why)</div></div>"
 Add '<div class="stats">'
-Add "<div class=`"stat`"><b>$($breaking.Count)</b><span>Breaking</span></div>"
+Add "<div class=`"stat`"><b>$($issues.Count)</b><span>Breaking</span></div>"
 Add "<div class=`"stat`"><b>$($warnings.Count)</b><span>Warnings</span></div>"
 Add "<div class=`"stat`"><b>$($unverified.Count)</b><span>Not verified</span></div>"
 Add "<div class=`"stat`"><b>$($passed.Count)</b><span>Passed</span></div>"
@@ -384,7 +406,8 @@ if (@(Arr $r.scope.cms_items).Count -gt 0) { Add '<h3>CMS items</h3>'; Add (List
 
 Add '<h2>Breaking issues</h2>'
 if ($breaking.Count -eq 0) { Add '<p class="muted">None found in the checks that ran.</p>' }
-foreach ($c in $breaking) {
+foreach ($issue in $issues) {
+    $c = $issue.lead
     Add '<div class="card">'
     Add "<h3>$(E $c.name)</h3>"
     Add "<div class=`"row`"><span class=`"label`">Page:</span> $(OrDash $c.page)</div>"
@@ -392,6 +415,11 @@ foreach ($c in $breaking) {
     Add "<div class=`"row`"><span class=`"label`">Likely cause:</span> $(OrDash $c.cause)</div>"
     Add "<div class=`"row`"><span class=`"label`">Suggested fix:</span> $(OrDash $c.fix)</div>"
     if ($c.attribution -eq 'outside_session') { Add '<div class="row"><b>Not from this session.</b></div>' }
+    if ($c.attribution -eq 'intended') { Add '<div class="row"><b>Done on purpose, but it breaks a rule, so it still blocks publishing.</b></div>' }
+    if ($issue.others.Count -gt 0) {
+        $items = @($issue.others | ForEach-Object { "<li><b>$(E $_.name)</b> ($(E $_.page)): $(E ((([string]$_.evidence) -split "`n")[0]))</li>" })
+        Add "<div class=`"row`"><span class=`"label`">Also affected by the same problem:</span><ul>$($items -join '')</ul></div>"
+    }
     $shots = @(Arr $c.screenshots)
     if ($shots.Count -gt 0) {
         Add '<div class="shots">'
@@ -431,7 +459,9 @@ function CheckTable($rows) {
         if ($c.status -eq 'fail' -and $c.severity -eq 'info') { $txt = 'Info'; $cls = 'info' }
         # A failure that doesn't count against this work mustn't look like one, or a red "Fail" sits
         # under a PASS verdict.
-        if ($c.status -eq 'fail' -and $c.attribution -eq 'pre_existing') { $txt = 'Already live'; $cls = 'info' }
+        if ($c.status -eq 'fail' -and $c.attribution -eq 'pre_existing') { $txt = 'Already Live'; $cls = 'info' }
+        # A page checked in an earlier run and unchanged since says so, rather than a plain Pass.
+        if ($c.status -eq 'pass' -and $c.carried_forward) { $txt = 'Tested earlier' }
         if ($c.status -eq 'fail' -and $c.attribution -eq 'intended') {
             if ($c.severity -eq 'breaking') { $txt = 'Intended, breaks a rule'; $cls = 'fail' } else { $txt = 'Intended'; $cls = 'warning' }
         }
@@ -573,7 +603,8 @@ if (-not $NoReveal) {
     verdict = $verdict
     safe_to_publish = $safe
     why = $why
-    breaking = $breaking.Count
+    breaking = $issues.Count
+    breaking_checks = $breaking.Count
     warnings = $warnings.Count
     not_verified = $unverified.Count
     passed = $passed.Count

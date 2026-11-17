@@ -57,7 +57,7 @@ Write-Host "`n== Forms =="
 $c = (Full '/a') + @([pscustomobject]@{ area = 'form'; name = 'Form 5 loads'; page = '/a'; form_id = '5'; form_renders = $false; status = 'fail'; severity = 'breaking'; attribution = 'this_session'; evidence = 'No fields.' },
     [pscustomobject]@{ area = 'form'; name = 'Form 5 compared'; page = '/a'; form_id = '5'; status = 'pass'; severity = 'info'; evidence = 'IDs match.' },
     [pscustomobject]@{ area = 'form'; name = 'Form 5 elsewhere'; page = '/b'; form_id = '5'; status = 'pass'; severity = 'info'; evidence = 'Loads.' })
-$o = Render (Results 't11' $c @('/a')); Ok 'dead form fails its companion check, not other pages' ($o.verdict -eq 'BREAKING' -and $o.breaking -eq 2) "breaking=$($o.breaking)"
+$o = Render (Results 't11' $c @('/a')); Ok 'dead form fails its companion check, not other pages, as one issue' ($o.verdict -eq 'BREAKING' -and $o.breaking_checks -eq 2 -and $o.breaking -eq 1) "checks=$($o.breaking_checks) issues=$($o.breaking)"
 $c = (Full '/a') + @([pscustomobject]@{ area = 'form'; name = 'Form 6 loads'; page = '/a'; form_id = '6'; form_renders = $false; status = 'fail'; severity = 'breaking'; attribution = 'pre_existing'; evidence = 'Dead on prod too.' }, [pscustomobject]@{ area = 'form'; name = 'Form 6 compared'; page = '/a'; form_id = '6'; status = 'pass'; severity = 'info'; evidence = 'IDs match.' })
 $o = Render (Results 't12' $c @('/a')); Ok 'dead form already broken on production -> PASS' ($o.verdict -eq 'PASS') "$($o.verdict)"
 
@@ -184,7 +184,7 @@ Ok 'a passing check labelled pre_existing is still shown' ($h -match 'Form 1 com
 Write-Host "`n== Dead form without form_renders, locked PDF =="
 $c = (Full '/a') + @([pscustomobject]@{ area = 'form'; name = 'Form 9 loads'; page = '/a'; form_id = '9'; status = 'fail'; severity = 'breaking'; attribution = 'this_session'; evidence = 'No fields.' },
     [pscustomobject]@{ area = 'form'; name = 'Form 9 compared with the live site'; page = '/a'; form_id = '9'; status = 'pass'; severity = 'info'; evidence = 'IDs match.' })
-$o = Render (Results 't80' $c @('/a')); Ok 'a failed "loads" check fails its other checks without form_renders' ($o.breaking -eq 2) "breaking=$($o.breaking)"
+$o = Render (Results 't80' $c @('/a')); Ok 'a failed "loads" check fails its other checks without form_renders' ($o.breaking_checks -eq 2 -and $o.breaking -eq 1) "checks=$($o.breaking_checks) issues=$($o.breaking)"
 $r = Results 't81' ((Full '/a')) @('/a'); $first = Render $r
 $lock = [IO.File]::Open($first.pdf, 'Open', 'Read', 'None')
 try { $second = Render $r } finally { $lock.Close() }
@@ -199,8 +199,15 @@ Write-Host "`n== Unchanged session pages are carried forward =="
 $cp = Join-Path $work 'cp-carry.json'
 WriteCp $cp @([pscustomobject]@{ session_id = 'sess-t95'; run_id = 'old'; finished_at = '2026-11-01T00:00:00Z'; open_issues = @() })
 $o = Render (WithSession (Results 't95' ((Full '/a')) @('/a')) @('/a', '/b')) $cp; $h = Get-Content $o.html -Raw
-Ok 'an earlier page unchanged since the last check passes as carried forward' ($o.verdict -eq 'PASS' -and $h -match 'Checked in an earlier run') "$($o.verdict) $($o.why)"
+Ok 'an earlier page unchanged since the last check passes as carried forward' ($o.verdict -eq 'PASS' -and $h -match 'Checked in an earlier run' -and $h -match '>Tested earlier<') "$($o.verdict) $($o.why)"
 WriteCp $cp @([pscustomobject]@{ session_id = 'sess-t96'; run_id = 'old'; finished_at = '2026-11-01T00:00:00Z'; open_issues = @() })
 $o = Render (WithSession (Results 't96' ((Full '/a')) @('/a', '/b')) @('/a', '/b')) $cp
 Ok 'a page changed since the last check with no image rows -> INCOMPLETE' ($o.verdict -eq 'INCOMPLETE') "$($o.verdict)"
+Write-Host "`n== One problem, one issue =="
+$c = (Full '/a') + @([pscustomobject]@{ area = 'flow'; name = 'Book a demo works'; page = '/'; status = 'fail'; severity = 'breaking'; attribution = 'this_session'; cause = 'Form host changed.'; evidence = 'Empty form.' },
+    [pscustomobject]@{ area = 'form'; name = 'Form 2 loads'; page = '/a'; form_id = '2'; status = 'fail'; severity = 'breaking'; attribution = 'this_session'; cause = 'Form host  changed.'; evidence = 'No fields.' },
+    [pscustomobject]@{ area = 'seo'; name = 'Title removed'; page = '/a'; status = 'fail'; severity = 'breaking'; attribution = 'this_session'; cause = 'Title cleared.'; evidence = 'Blank.' })
+$o = Render (Results 't97' $c @('/a')); $h = Get-Content $o.html -Raw
+Ok 'checks with the same cause are one issue, a different cause another' ($o.breaking -eq 2 -and $o.breaking_checks -eq 3 -and $o.why -match '^2 breaking') "issues=$($o.breaking) checks=$($o.breaking_checks)"
+Ok '... the dead form leads, the button is listed as also affected' ($h -match '(?s)<h3>Form 2 loads</h3>.*Also affected.*Book a demo works') 'grouping layout wrong'
 Write-Host "`n$($script:n - $script:fails) of $($script:n) passed"
