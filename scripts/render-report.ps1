@@ -268,9 +268,12 @@ if (-not $NoImageAudit -and $scopePages.Count -gt 0 -and $r.dev_host) {
 # A form that didn't load on a page fails every check on that form there. Otherwise a check that
 # only compares form IDs could pass while visitors see no form. The other checks take the dead form's
 # attribution: if it was already broken on production, so are they.
+# A form counts as dead when its check says it didn't render, or its "Form <id> loads" check failed
+# (Claude doesn't always set form_renders).
+function IsDeadFormCheck($c) { return ($c.form_id -and ($c.form_renders -eq $false -or ($c.status -eq 'fail' -and ([string]$c.name) -match '(?i)\bloads?\b'))) }
 $deadForms = @{}
 foreach ($c in $checks) {
-    if ($c.form_id -and $c.form_renders -eq $false) {
+    if (IsDeadFormCheck $c) {
         $att = if ($c.attribution) { $c.attribution } else { 'this_session' }
         $deadForms["$($c.form_id)|$($c.page)"] = $att
     }
@@ -278,7 +281,7 @@ foreach ($c in $checks) {
 foreach ($c in $checks) {
     if (-not $c.form_id -or -not $deadForms.ContainsKey("$($c.form_id)|$($c.page)")) { continue }
     $deadAtt = $deadForms["$($c.form_id)|$($c.page)"]
-    if ($c.form_renders -eq $false) {
+    if (IsDeadFormCheck $c) {
         $c.status = 'fail'
         $c | Add-Member -NotePropertyName severity -NotePropertyValue 'breaking' -Force
         $c | Add-Member -NotePropertyName attribution -NotePropertyValue $deadAtt -Force
@@ -470,7 +473,12 @@ $safeId = ([string]$r.run_id) -replace '[^A-Za-z0-9_-]', '-'
 $htmlFile = Join-Path $OutDir "site-guard-$safeId.html"
 $pdfFile = Join-Path $OutDir "site-guard-$safeId.pdf"
 [IO.File]::WriteAllText($htmlFile, $html, (New-Object System.Text.UTF8Encoding($false)))
-if (Test-Path $pdfFile) { Remove-Item $pdfFile -Force }
+if (Test-Path $pdfFile) {
+    # A PDF open in a viewer is locked and can't be replaced. Write the new one beside it instead of
+    # failing, so a rerun always produces a report.
+    try { Remove-Item $pdfFile -Force -ErrorAction Stop }
+    catch { $pdfFile = Join-Path $OutDir ("site-guard-$safeId-" + (Get-Date).ToString('HHmmss') + '.pdf') }
+}
 
 $browser = (& $PsExe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'preflight.ps1') | ConvertFrom-Json).pdf_browser
 $pdfError = $null

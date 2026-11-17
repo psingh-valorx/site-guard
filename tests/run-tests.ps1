@@ -181,4 +181,12 @@ Write-Host "`n== Report shows passes =="
 $c = (Full '/a') + @((Chk 'form' 'Form 1 compared' '/book' 'pass' 'info' 'pre_existing' 'Same form.'))
 $o = Render (Results 't70' $c @('/a')); $h = Get-Content $o.html -Raw
 Ok 'a passing check labelled pre_existing is still shown' ($h -match 'Form 1 compared') 'pass row hidden'
+Write-Host "`n== Dead form without form_renders, locked PDF =="
+$c = (Full '/a') + @([pscustomobject]@{ area = 'form'; name = 'Form 9 loads'; page = '/a'; form_id = '9'; status = 'fail'; severity = 'breaking'; attribution = 'this_session'; evidence = 'No fields.' },
+    [pscustomobject]@{ area = 'form'; name = 'Form 9 compared with the live site'; page = '/a'; form_id = '9'; status = 'pass'; severity = 'info'; evidence = 'IDs match.' })
+$o = Render (Results 't80' $c @('/a')); Ok 'a failed "loads" check fails its other checks without form_renders' ($o.breaking -eq 2) "breaking=$($o.breaking)"
+$r = Results 't81' ((Full '/a')) @('/a'); $first = Render $r
+$lock = [IO.File]::Open($first.pdf, 'Open', 'Read', 'None')
+try { $second = Render $r } finally { $lock.Close() }
+Ok 'a rerun works while the old PDF is open' ($second.verdict -eq 'PASS' -and $second.pdf -and $second.pdf -ne $first.pdf -and (Test-Path $second.pdf)) "pdf=$($second.pdf) err=$($second.pdf_error)"
 Write-Host "`n$($script:n - $script:fails) of $($script:n) passed"
