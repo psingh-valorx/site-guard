@@ -84,7 +84,23 @@ INSTALLED=""
 if [ -z "$CLAUDE" ]; then
     todo "Install Claude Code from https://code.claude.com/docs , then double-click this file again."
 else
-    LOG="$("$CLAUDE" plugin marketplace add "$MARKETPLACE" 2>&1)"
+    # Claude Code downloads plugins with Git. A Mac without Apple's developer tools has no working Git,
+    # so download the plugin as a zip instead and add it as a local marketplace.
+    if xcode-select -p >/dev/null 2>&1 || [ -x /opt/homebrew/bin/git ] || [ -x /usr/local/bin/git ]; then
+        LOG="$("$CLAUDE" plugin marketplace add "$MARKETPLACE" 2>&1)"
+    else
+        SRC="$TARGET/plugin-source"
+        TMP="$(mktemp -d)"
+        if curl -fsSL "https://github.com/$MARKETPLACE/archive/refs/heads/main.zip" -o "$TMP/p.zip" && unzip -q "$TMP/p.zip" -d "$TMP/x"; then
+            rm -rf "$SRC"
+            mv "$TMP"/x/*/ "$SRC"
+            ok "Downloaded the plugin (Git not needed)"
+            LOG="$("$CLAUDE" plugin marketplace add "$SRC" 2>&1)"
+        else
+            LOG="Download of the plugin failed."
+        fi
+        rm -rf "$TMP"
+    fi
     LOG="$LOG
 $("$CLAUDE" plugin marketplace update valorx-tools 2>&1)"
     LOG="$LOG
@@ -96,7 +112,7 @@ $("$CLAUDE" plugin update "$PLUGIN" 2>&1)"
     if [ -n "$INSTALLED" ]; then
         ok "Installed the Site Guard plugin"
     else
-        todo "The plugin did not install. Check your internet connection, then double-click this file again."
+        todo "The plugin did not install. Send the messages below to the person who gave you this file."
         echo "$LOG"
     fi
 fi

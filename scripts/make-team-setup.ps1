@@ -42,6 +42,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
 $configB64 = '__CONFIG__'
 $envB64 = '__ENV__'
 $problems = New-Object System.Collections.ArrayList
@@ -89,17 +90,52 @@ if (-not $claude) {
 }
 else {
     $exe = if ($claude.Source) { $claude.Source } else { $claude.FullName }
-    $ErrorActionPreference = 'Continue'
-    $log = (& $exe plugin marketplace add $Marketplace 2>&1 | Out-String)
-    $log += (& $exe plugin marketplace update valorx-tools 2>&1 | Out-String)
-    $log += (& $exe plugin install $Plugin 2>&1 | Out-String)
-    $log += (& $exe plugin update $Plugin 2>&1 | Out-String)
-    $ErrorActionPreference = 'Stop'
+    # Run a claude command and return its output as plain text, without PowerShell's red error blocks.
+    function Claude { $ErrorActionPreference = 'Continue'; ((& $exe @args 2>&1) | ForEach-Object { "$_" }) -join "`n" }
+
+    # Claude Code downloads plugins from GitHub with Git. Offer to install Git if it's missing; if that
+    # isn't possible, download the plugin as a zip instead, which needs no Git.
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git -and (Get-Command winget -ErrorAction SilentlyContinue)) {
+        Write-Host "`n  Git isn't installed. Claude Code uses it to download plugins."
+        $answer = Read-Host '  Install Git now? Type Y and press Enter (or just press Enter to skip)'
+        if ($answer -match '^[Yy]') {
+            & winget install --id Git.Git -e --source winget --accept-package-agreements --accept-source-agreements | Out-Null
+            $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
+            $git = Get-Command git -ErrorAction SilentlyContinue
+        }
+    }
+    $log = ''
+    if ($git) {
+        $log += Claude plugin marketplace add $Marketplace
+    }
+    else {
+        # No Git: download the plugin from GitHub as a zip and add it as a local marketplace. Running this
+        # file again downloads the latest version.
+        $source = Join-Path $TargetDir 'plugin-source'
+        $tmpZip = Join-Path $env:TEMP ('site-guard-' + [guid]::NewGuid().ToString('N') + '.zip')
+        $tmpDir = $tmpZip -replace '\.zip$', ''
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/$Marketplace/archive/refs/heads/main.zip" -OutFile $tmpZip
+            Expand-Archive $tmpZip -DestinationPath $tmpDir -Force
+            $inner = Get-ChildItem $tmpDir -Directory | Select-Object -First 1
+            if (Test-Path $source) { Remove-Item $source -Recurse -Force }
+            Move-Item $inner.FullName $source
+            Say $true 'Downloaded the plugin (Git not needed)'
+        }
+        catch { $log += "Download failed: $($_.Exception.Message)`n" }
+        finally { Remove-Item $tmpZip, $tmpDir -Recurse -Force -ErrorAction SilentlyContinue }
+        if (Test-Path $source) { $log += Claude plugin marketplace add $source }
+    }
+    $log += "`n" + (Claude plugin marketplace update valorx-tools)
+    $log += "`n" + (Claude plugin install $Plugin)
+    $log += "`n" + (Claude plugin update $Plugin)
     $configRoot = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $env:USERPROFILE '.claude' }
     $installed = Get-ChildItem (Join-Path $configRoot 'plugins\cache') -Recurse -Filter 'marketo-lookup.ps1' -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match 'site-guard' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if ($installed) { Say $true 'Installed the Site Guard plugin' }
     else {
-        Say $false 'The plugin did not install. Check your internet connection, then double-click this file again.'
+        Say $false 'The plugin did not install. Send the messages below to the person who gave you this file.'
         Write-Host ($log -replace '(?m)^\s*$\r?\n', '')
     }
 
