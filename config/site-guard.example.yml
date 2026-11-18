@@ -13,7 +13,7 @@ real_submissions:
   cleanup_campaign_id: 0                      # Marketo campaign that deletes only test_email
   cleanup_wait_minutes: 15
   recheck_after_minutes: 20
-  min_minutes_between_submissions: 15         # one shared address: a delete timer ends every open run
+  min_minutes_between_submissions: 0          # forms are submitted back to back; one cleanup removes the shared lead
 
 # policy:
 #   real       - real submission allowed, only on pages the user worked on

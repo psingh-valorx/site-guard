@@ -123,7 +123,7 @@ Each name in its `hidden` list must exist in the rendered form, or lead data suc
 
 **Real submit**, only if Hard rule 4 allows:
 
-1. Run the Marketo lookup. If a lead already exists, an earlier test is waiting for cleanup. Tell the user and offer to wait, up to `recheck_after_minutes`, or mark this form `not_verified`. Also hold real submissions until `min_minutes_between_submissions` has passed since `last_real_submission_at`, and since any earlier submission in this run. If a wait applies, tell the user how long it is and let them choose to wait or mark the form `not_verified`.
+1. Submit every form that gets a real submission in this run back to back, without waiting between them, and then confirm them all. A test lead that already exists in Marketo never blocks a submission: the new submissions update the same lead, since Marketo merges by email, and its cleanup removes it, including any lead left over from an earlier run. Note in the report if a lead already existed. The cleanup deletes the lead `cleanup_wait_minutes` after a submission, and after that no form can be confirmed, so finish every submission and lookup within that window, counted from the first submission.
 2. Tell the user the form's `outside_effects` before the first real submission in a run.
 3. Click submit as a person would. Note the UTC time.
 4. Check for the success message or redirect. "Submission failed" or no response is a `fail` with severity `breaking`, unless the CAPTCHA reason above applies.
@@ -133,7 +133,7 @@ Each name in its `hidden` list must exist in the rendered form, or lead data suc
    powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scripts/marketo-lookup.ps1" -Email "<test_email>" -AllowedEmail "<test_email>" -Since "<UTC time>"
    ```
 
-   Retry for up to 5 minutes. Identify this run's submission by form ID and fill time in `form_fills`. Confirm the field values and read the CAPTCHA score if present. A success message with no lead is `breaking`: delivery failed.
+   Retry for up to 5 minutes, but stop before the cleanup window from the first submission ends. Identify each form's submission by its form ID and fill time in `form_fills`, not by counting leads, because all submissions land on one lead. If the lead was already deleted by the cleanup before a form could be confirmed, mark that form `not_verified` with that reason, not `fail`. Confirm the field values and read the CAPTCHA score if present. A success message with no lead is `breaking`: delivery failed.
 6. Add a `cleanup` entry with `delete_due_at` = submit time + `cleanup_wait_minutes`, `marketo_status` of `scheduled`, and `salesforce_status` of `not verified`. Add the form's `followup`, if any, to `followups`.
 7. A low CAPTCHA score isn't a failure, but report it, since some campaigns only fire on a trusted score.
 
